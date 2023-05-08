@@ -48,7 +48,7 @@ _LICENSE = ""
 # The HuggingFace Datasets library doesn't host the datasets but only points to the original files.
 # This can be an arbitrary nested dict/list of URLs (see below in `_split_generators` method)
 _URLS = {
-    "first_domain": "./X_maps_Cosmogrid_100k.npy"
+    "first_domain": "./"
 }
 
 
@@ -86,7 +86,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                     "n_s": datasets.Value("float"),
                     "sigma_8": datasets.Value("float"),
                     "w_0": datasets.Value("float"),
-                    "sigma_8": datasets.Array2D(shape=(66, 66), dtype='float'),
+                    "map": datasets.Array2D(shape=(66, 66), dtype='float')
                     # These are the features of your dataset like images, labels ...
                 }
             )
@@ -137,8 +137,8 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 name=datasets.Split.VALIDATION,
                 # These kwargs will be passed to _generate_examples
                 gen_kwargs={
-                    "filepath": os.path.join(data_dir, "dev.jsonl"),
-                    "split": "dev",
+                    "filepath": os.path.join(data_dir, "val.jsonl"),
+                    "split": "val",
                 },
             ),
             datasets.SplitGenerator(
@@ -161,13 +161,16 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 if self.config.name == "first_domain":
                     # Yields examples as (key, example) tuples
                     yield key, {
-                        "sentence": data["sentence"],
-                        "option1": data["option1"],
-                        "answer": "" if split == "test" else data["answer"],
+                        "Omega_m": data["Omega_m"],
+                        "H_0": data["H_0"],
+                        "n_s": data["n_s"],
+                        "sigma_8": data["sigma_8"],
+                        "w_0": data["w_0"],
+                        "map": data["map"]
                     }
-                else:
-                    yield key, {
-                        "sentence": data["sentence"],
-                        "option2": data["option2"],
-                        "second_domain_answer": "" if split == "test" else data["second_domain_answer"],
-                    }
+                # else:
+                #     yield key, {
+                #         "sentence": data["sentence"],
+                #         "option2": data["option2"],
+                #         "second_domain_answer": "" if split == "test" else data["second_domain_answer"],
+                #     }
