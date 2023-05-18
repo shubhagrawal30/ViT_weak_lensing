@@ -137,6 +137,7 @@ dmypy.json
 
 **/logs/
 **/test/
+**/dropout/
 
 **/*.json
 **/*.jsonl
