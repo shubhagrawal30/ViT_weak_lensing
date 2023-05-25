@@ -16,8 +16,9 @@
 
 import csv
 import os
+import gc
 import numpy as np
-
+import pandas as pd
 import datasets
 
 
@@ -55,6 +56,8 @@ _URLS = {
 # TODO: Name of the dataset usually matches the script name with CamelCase instead of snake_case
 class NewDataset(datasets.GeneratorBasedBuilder):
     """224x224x4 redshift dependent weak lensing kappa simulation maps from CosmoGrid."""
+
+    # DEFAULT_WRITER_BATCH_SIZE = 64
 
     VERSION = datasets.Version("1.1.0")
 
@@ -94,7 +97,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                     "w0": datasets.Value("float32"),
                     "sim_type": datasets.Value("string"),
                     "sim_name": datasets.Value("string"),
-                    "map": datasets.Image()
+                    "map": datasets.Array3D(shape=(224, 224, 4), dtype="float32")
                     # These are the features of your dataset like images, labels ...
                 }
             )
@@ -162,18 +165,27 @@ class NewDataset(datasets.GeneratorBasedBuilder):
     def _generate_examples(self, filepath, split):
         # TODO: This method handles input defined in _split_generators to yield (key, example) tuples from the dataset.
         # The `key` is for legacy reasons (tfds) and is not important in itself, but must be unique for each example.
-        with jsonlines.open(filepath) as reader:
-            for key, data in enumerate(reader):
+        data_dir = _URLS[self.config.name]
+        df = pd.read_csv(os.path.join(data_dir, "..", "parameters.csv"))
+        key = 0
+        with open(filepath, "r") as reader:
+            for filename in reader:
                 if self.config.name == "first_domain":
-                    # Yields examples as (key, example) tuples
-                    yield key, {
-                        "Omega_m": float(data["Omega_m"]),
-                        "H_0": float(data["H_0"]),
-                        "n_s": float(data["n_s"]),
-                        "sigma_8": float(data["sigma_8"]),
-                        "w_0": float(data["w_0"]),
-                        "map": np.array(data["map"])[:, :, 0]
-                    }
+                    dat = np.load(os.path.join(data_dir, filename.strip()))
+                    row = df[df["sim_name"] == filename.strip()[:-4]]
+                    sim_type, sim_name, As, bary_Mc, bary_nu, H0, O_cdm, O_nu, Ob, Om, ns, s8, w0 = row.values[0]
+                    # print(row.values[0], d.shape)
+                    for d in dat:
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": np.array(d)
+                        }
+                        key += 1
+                    del dat
+                    gc.collect()
                 # else:
                 #     yield key, {
                 #         "sentence": data["sentence"],
