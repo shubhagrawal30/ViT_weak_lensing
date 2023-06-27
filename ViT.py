@@ -19,20 +19,20 @@ if __name__ == "__main__":
 
     out_name = "20230620_vit"
     out_dir = f"./models/{out_name}/"
-    plot_dir = f"./plots/{out_name}/"
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-    subset = "test"
+    subset = "train"
     # labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
     labels = ["Om", "s8"]
     size = (224, 224)
-    batch_size = 32
+    per_device_train_batch_size = 128
+    per_device_eval_batch_size = 3000
     num_epochs = 2
     learning_rate = 0.001
     weight_decay_rate = 0.001
     
-    id2label = {**{labels.index(label):label for label in labels}}#, \
-                # **{(len(labels)+labels.index(label)): "ln_sig_" + label for label in labels}}
+    id2label = {**{labels.index(label):label for label in labels}, \
+                **{(len(labels)+labels.index(label)): "ln_sig_" + label for label in labels}}
     label2id = {label:id for id,label in id2label.items()}
 
     print(id2label)
@@ -61,9 +61,9 @@ if __name__ == "__main__":
 
     train_data_augmentation = Compose(
             [
+                normalize,
                 RandomHorizontalFlip(),
                 RandomVerticalFlip(),
-                normalize,
             ]
         )
 
@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
     def collate_fn(examples):
         pixel_values = torch.stack([example["pixel_values"] for example in examples])
-        labels = torch.tensor([example["labels"] for example in examples])
+        labels = torch.tensor(np.array([example["labels"] for example in examples]))
         return {"pixel_values": pixel_values, "labels": labels}
 
     args = TrainingArguments(
@@ -104,8 +104,8 @@ if __name__ == "__main__":
         load_best_model_at_end=True,
         logging_dir='logs',
         remove_unused_columns=False,
-        per_device_train_batch_size = batch_size,
-        per_device_eval_batch_size = batch_size
+        per_device_train_batch_size = per_device_train_batch_size,
+        per_device_eval_batch_size = per_device_eval_batch_size,
     )
 
     trainer = DropoutTrainer(
@@ -120,8 +120,8 @@ if __name__ == "__main__":
 
     trainer.save_model(out_dir)
 
-    n_pred = 10
-    preds = np.empty((n_pred, len(data["validation"]), 6))
+    n_pred = 5
+    preds = np.empty((n_pred, len(data["validation"]), len(labels)*2))
     for i in range(n_pred):
         if i % 2 == 0: 
             print(i)
@@ -129,6 +129,11 @@ if __name__ == "__main__":
         preds[i] = ps.predictions
         if i == 0:
             label_ids = ps.label_ids
+
+    np.save(out_dir + "preds.npy", preds)
+    np.save(out_dir + "label_ids.npy", label_ids)
+
+    exit()
 
     plot_y = label_ids
     predictions_best = np.nanmean(preds, axis=0)
@@ -152,7 +157,7 @@ if __name__ == "__main__":
         ax.set_aspect('equal', adjustable='box')
         ax.set_title(label)
         ax.grid()
-    plt.savefig(plot_dir + "pred-true.png")
+    plt.savefig(out_dir + "pred-true.png")
     plt.close()
 
     fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
@@ -163,5 +168,5 @@ if __name__ == "__main__":
         ax.set_title(label)
         ax.grid()
         ax.set_xlim([-0.7, 0.7])
-    plt.savefig(plot_dir + "hist.png")
+    plt.savefig(out_dir + "hist.png")
     plt.close()
