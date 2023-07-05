@@ -17,16 +17,24 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    out_name = "20230620_vit"
+    date = "20230705"
+    out_name = f"{date}_vit_noisy_2_params"
+    # out_name = "20230628_vit_6_params"
     out_dir = f"./models/{out_name}/"
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
     subset = "train"
+    
+    dataset = "noisy"
+    num_channels = 40
+    # dataset = "noiseless"
+    # num_channels = 4
+    
     # labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
     labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
-    per_device_eval_batch_size = 3000
+    per_device_eval_batch_size = 256
     num_epochs = 2
     learning_rate = 0.001
     weight_decay_rate = 0.001
@@ -38,12 +46,12 @@ if __name__ == "__main__":
     print(id2label)
     print(label2id)
 
-    data = load_dataset("./data/20230419_224x224/20230419_224x224.py", cache_dir="~/cache")
+    data = load_dataset("./data/20230419_224x224/20230419_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
 
     checkpoint = "google/vit-base-patch16-224-in21k"
     model = NLLViT.from_pretrained(checkpoint,
                 problem_type = "regression", id2label=id2label, label2id=label2id, hidden_dropout_prob=0.1,
-                num_channels=4, image_size=224, patch_size=16, ignore_mismatched_sizes=True)
+                num_channels=num_channels, image_size=224, patch_size=16, ignore_mismatched_sizes=True)
 
     print(model.config.problem_type)
     print(model.config.num_labels)
@@ -116,11 +124,17 @@ if __name__ == "__main__":
         data_collator=collate_fn
     )
 
-    trainer.train()
-
+    try:
+        print("Loading model")
+        trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
+    except:
+        print("Model not found")
+        print("Training model")
+        trainer.train()
+    
     trainer.save_model(out_dir)
 
-    n_pred = 5
+    n_pred = 10
     preds = np.empty((n_pred, len(data["validation"]), len(labels)*2))
     for i in range(n_pred):
         if i % 2 == 0: 
@@ -133,21 +147,27 @@ if __name__ == "__main__":
     np.save(out_dir + "preds.npy", preds)
     np.save(out_dir + "label_ids.npy", label_ids)
 
-    exit()
+    preds_best, preds_std = preds[:,:, :preds.shape[-1]//2], preds[:,:, preds.shape[-1]//2:]
+    print(preds.shape, preds_best.shape, preds_std.shape)
+
+    predictions = np.empty((preds_best.shape[0] * 100, preds_best.shape[1], preds_best.shape[2]))
+    for i in range(preds_best.shape[0]):
+        for j in range(100):
+            predictions[i*100+j] = np.random.normal(preds_best[i], np.exp(preds_std[i]))
 
     plot_y = label_ids
-    predictions_best = np.nanmean(preds, axis=0)
-    predictions_std = np.nanstd(preds, axis=0)
+    predictions_best = np.nanmean(predictions, axis=0)
+    predictions_std = np.nanstd(predictions, axis=0)
 
     upp_lims = np.nanmax(plot_y, axis=0)
     low_lims = np.nanmin(plot_y, axis=0)
-    fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 5))
+    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
     fig.subplots_adjust(wspace=0.3, hspace=0.2)
     labels = [r"$\Omega_m$", r"$\sigma_8$"]
     for ind, (label, ax, low_lim, upp_lim) in enumerate(zip(labels, axs.ravel(), low_lims, upp_lims)):
         p = np.poly1d(np.polyfit(plot_y[:, ind], predictions_best[:, ind], 1))
-        # ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  predictions_std[:, ind][::10], marker="x", ls='none', alpha=0.4)
-        ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  0, marker="x", ls='none', alpha=0.4)
+        ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  predictions_std[:, ind][::10], marker="x", ls='none', alpha=0.4)
+        # ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  0, marker="x", ls='none', alpha=0.4)
         ax.set_xlabel("true")
         ax.set_ylabel("prediction")
         ax.plot([low_lim, upp_lim], [low_lim, upp_lim], color="black")
@@ -158,15 +178,4 @@ if __name__ == "__main__":
         ax.set_title(label)
         ax.grid()
     plt.savefig(out_dir + "pred-true.png")
-    plt.close()
-
-    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
-    fig.subplots_adjust(wspace=0.3, hspace=0.2)
-    labels = [r"$\Omega_m$", r"$\sigma_8$"]
-    for ind, (label, ax) in enumerate(zip(labels, axs.ravel())):
-        ax.hist((plot_y[:, ind] - predictions_best[:, ind]) / predictions_best[:, ind], bins=100, density=True, histtype="step")
-        ax.set_title(label)
-        ax.grid()
-        ax.set_xlim([-0.7, 0.7])
-    plt.savefig(out_dir + "hist.png")
     plt.close()

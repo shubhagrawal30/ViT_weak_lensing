@@ -45,12 +45,10 @@ _HOMEPAGE = ""
 # TODO: Add the licence for the dataset here if you can find it
 _LICENSE = ""
 
-# TODO: Add link to the official dataset URLs here
-# The HuggingFace Datasets library doesn't host the datasets but only points to the original files.
-# This can be an arbitrary nested dict/list of URLs (see below in `_split_generators` method)
-_URLS = {
-    "first_domain": "/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/20230419_224x224"
-}
+# DES values
+SHAPE_NOISE = 0.26
+N_GALAXY = 5.6 * 47.21 
+# 5.6 gal/arcmin^2 at nside=512
 
 
 # TODO: Name of the dataset usually matches the script name with CamelCase instead of snake_case
@@ -77,11 +75,11 @@ class NewDataset(datasets.GeneratorBasedBuilder):
     #     datasets.BuilderConfig(name="second_domain", version=VERSION, description="This part of my dataset covers a second domain"),
     # ]
 
-    DEFAULT_CONFIG_NAME = "first_domain"  # It's not mandatory to have a default configuration. Just use one if it make sense.
+    DEFAULT_CONFIG_NAME = "noiseless"  # It's not mandatory to have a default configuration. Just use one if it make sense.
 
     def _info(self):
         # TODO: This method specifies the datasets.DatasetInfo object which contains informations and typings for the dataset
-        if self.config.name == "first_domain":  # This is the name of the configuration selected in BUILDER_CONFIGS above
+        if self.config.name == "noiseless":  # This is the name of the configuration selected in BUILDER_CONFIGS above
             features = datasets.Features(
                 {   
                     "As": datasets.Value("float32"),
@@ -101,15 +99,27 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                     # These are the features of your dataset like images, labels ...
                 }
             )
-        # else:  # This is an example to show how to have different features for "first_domain" and "second_domain"
-        #     features = datasets.Features(
-        #         {
-        #             "sentence": datasets.Value("string"),
-        #             "option2": datasets.Value("string"),
-        #             "second_domain_answer": datasets.Value("string")
-        #             # These are the features of your dataset like images, labels ...
-        #         }
-        #     )
+        else:
+            features = datasets.Features(
+                {   
+                    "As": datasets.Value("float32"),
+                    "bary_Mc": datasets.Value("float32"),
+                    "bary_nu": datasets.Value("float32"),
+                    "H0": datasets.Value("float32"),
+                    "O_cdm": datasets.Value("float32"),
+                    "O_nu": datasets.Value("float32"),
+                    "Ob": datasets.Value("float32"),
+                    "Om": datasets.Value("float32"),
+                    "ns": datasets.Value("float32"),
+                    "s8": datasets.Value("float32"),
+                    "w0": datasets.Value("float32"),
+                    "sim_type": datasets.Value("string"),
+                    "sim_name": datasets.Value("string"),
+                    "map": datasets.Array3D(shape=(224, 224, 40), dtype="float32")
+                    # These are the features of your dataset like images, labels ...
+                }
+            )
+
         return datasets.DatasetInfo(
             # This is the description that will appear on the datasets page.
             description=_DESCRIPTION,
@@ -133,7 +143,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
         # dl_manager is a datasets.download.DownloadManager that can be used to download and extract URLS
         # It can accept any type or nested list/dict and will give back the same structure with the url replaced with path to local files.
         # By default the archives will be extracted and a path to a cached folder where they are extracted is returned instead of the archive
-        data_dir = _URLS[self.config.name]
+        data_dir = "/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/20230419_224x224"
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
@@ -165,16 +175,15 @@ class NewDataset(datasets.GeneratorBasedBuilder):
     def _generate_examples(self, filepath, split):
         # TODO: This method handles input defined in _split_generators to yield (key, example) tuples from the dataset.
         # The `key` is for legacy reasons (tfds) and is not important in itself, but must be unique for each example.
-        data_dir = _URLS[self.config.name]
+        data_dir = "/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/20230419_224x224"
         df = pd.read_csv(os.path.join(data_dir, "..", "parameters.csv"))
         key = 0
         with open(filepath, "r") as reader:
             for filename in reader:
-                if self.config.name == "first_domain":
-                    dat = np.load(os.path.join(data_dir, filename.strip()))
-                    row = df[df["sim_name"] == filename.strip()[:-4]]
-                    sim_type, sim_name, As, bary_Mc, bary_nu, H0, O_cdm, O_nu, Ob, Om, ns, s8, w0 = row.values[0]
-                    # print(row.values[0], d.shape)
+                dat = np.load(os.path.join(data_dir, filename.strip()))
+                row = df[df["sim_name"] == filename.strip()[:-4]]
+                sim_type, sim_name, As, bary_Mc, bary_nu, H0, O_cdm, O_nu, Ob, Om, ns, s8, w0 = row.values[0]
+                if self.config.name == "noiseless":
                     for d in dat:
                         yield key, {
                             "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
@@ -184,8 +193,56 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                             "map": np.array(d)
                         }
                         key += 1
-                    del dat
-                    gc.collect()
+                elif self.config.name == "noisy":
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape)
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                elif self.config.name == "noisy/16":
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape) / 16
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                elif self.config.name == "noisy/8":
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape) / 8
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                elif self.config.name == "noisy/4":
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape) / 4
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                del dat
+                gc.collect()
                 # else:
                 #     yield key, {
                 #         "sentence": data["sentence"],
