@@ -49,7 +49,7 @@ _LICENSE = ""
 SHAPE_NOISE = 0.26
 N_GALAXY = 5.6 * 47.21 
 # 5.6 gal/arcmin^2 at nside=512
-
+STD_NOISE = SHAPE_NOISE / np.sqrt(N_GALAXY)
 
 # TODO: Name of the dataset usually matches the script name with CamelCase instead of snake_case
 class NewDataset(datasets.GeneratorBasedBuilder):
@@ -205,10 +205,10 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                             "map": d
                         }
                         key += 1
-                elif self.config.name == "noisy/16":
+                elif self.config.name == "noisy_16":
                     for i in range(7):
                         d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
-                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape) / 16
+                        d += np.random.normal(0, STD_NOISE, d.shape) / 16
                         yield key, {
                             "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
                             "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
@@ -217,10 +217,10 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                             "map": d
                         }
                         key += 1
-                elif self.config.name == "noisy/8":
+                elif self.config.name == "noisy_8":
                     for i in range(7):
                         d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
-                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape) / 8
+                        d += np.random.normal(0, STD_NOISE, d.shape) / 8
                         yield key, {
                             "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
                             "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
@@ -229,10 +229,10 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                             "map": d
                         }
                         key += 1
-                elif self.config.name == "noisy/4":
+                elif self.config.name == "noisy_4":
                     for i in range(7):
                         d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
-                        d += np.random.normal(0, SHAPE_NOISE / N_GALAXY, d.shape) / 4
+                        d += np.random.normal(0, STD_NOISE, d.shape) / 4
                         yield key, {
                             "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
                             "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,

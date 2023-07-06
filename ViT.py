@@ -17,7 +17,7 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230705"
+    date = "20230706"
     out_name = f"{date}_vit_noisy_2_params"
     # out_name = "20230628_vit_6_params"
     out_dir = f"./models/{out_name}/"
@@ -131,8 +131,7 @@ if __name__ == "__main__":
         print("Model not found")
         print("Training model")
         trainer.train()
-    
-    trainer.save_model(out_dir)
+        trainer.save_model(out_dir)
 
     n_pred = 10
     preds = np.empty((n_pred, len(data["validation"]), len(labels)*2))
