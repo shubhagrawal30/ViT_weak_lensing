@@ -144,4 +144,6 @@ dmypy.json
 
 models/
 
+**/temp/
+
 scripts/copy_data.sh
