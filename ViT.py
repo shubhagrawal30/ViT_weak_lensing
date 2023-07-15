@@ -20,7 +20,7 @@ if __name__ == "__main__":
 
     date = "20230711"
     # out_name = f"{date}_vit_noisy_2_params"
-    out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
+    out_name = f"{date}_vit_noisy_6_params" #+ "_no_norm"
     # out_name = f"{date}_vit_6_params"
     out_dir = f"./models/{out_name}/"
     Path(out_dir).mkdir(parents=True, exist_ok=True)
@@ -36,8 +36,8 @@ if __name__ == "__main__":
     # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
-    per_device_eval_batch_size = 256
-    num_epochs = 2
+    per_device_eval_batch_size = 128
+    num_epochs = 25
     learning_rate = 0.001
     weight_decay_rate = 0.001
     
@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     train_data_augmentation = Compose(
             [
-                # normalize,
+                normalize,
                 RandomHorizontalFlip(),
                 RandomVerticalFlip(),
             ]
@@ -87,7 +87,7 @@ if __name__ == "__main__":
 
     val_data_augmentation = Compose(
             [
-                # normalize,
+                normalize,
             ]
         )
 
@@ -134,11 +134,13 @@ if __name__ == "__main__":
         data_collator=collate_fn
     )
 
-    try:
-        print("Loading model")
-        trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    except:
-        print("Model not found")
+    # try:
+    #     print("Loading model")
+    #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
+    #     trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
+    #                                 "/checkpoint-140/pytorch_model.bin"))
+    # except:
+    print("Model not found")
     print("Training model")
     trainer.train()
     trainer.save_model(out_dir)
