@@ -1,27 +1,24 @@
 if __name__ == "__main__":
     from datasets import load_dataset
     from pathlib import Path
-    from transformers import AutoImageProcessor, ViTForImageClassification, ViTConfig, ViTModel
     import numpy as np 
     from matplotlib import pyplot as plt
     from PIL import Image
     import torch
-    from transformers import create_optimizer, TrainingArguments, Trainer
+    from torch import nn
     from torch.utils.data import DataLoader
     from sklearn.preprocessing import MinMaxScaler
+    from transformers import AdamW
+    import tqdm
 
     import sys
     sys.path.append("./scripts/")
-    from TrainerWithDropout import DropoutTrainer
-    from ViTwithNLL import NLLViT
 
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230711"
-    # out_name = f"{date}_vit_noisy_2_params"
-    out_name = f"{date}_vit_noisy_6_params" #+ "_no_norm"
-    # out_name = f"{date}_vit_6_params"
+    date = "20230715"
+    out_name = f"{date}_resnet_noisy_6_params" #+ "_no_norm"
     out_dir = f"./models/{out_name}/"
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
@@ -37,7 +34,7 @@ if __name__ == "__main__":
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 128
-    num_epochs = 25
+    num_epochs = 5
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
@@ -58,13 +55,25 @@ if __name__ == "__main__":
             scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
             data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1)) 
 
-    checkpoint = "google/vit-base-patch16-224-in21k"
-    model = NLLViT.from_pretrained(checkpoint,
-                problem_type = "regression", id2label=id2label, label2id=label2id, hidden_dropout_prob=0.1,
-                num_channels=num_channels, image_size=224, patch_size=16, ignore_mismatched_sizes=True)
+    model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
 
-    print(model.config.problem_type)
-    print(model.config.num_labels)
+    def neg_log_likelihood(preds, y):
+        # assuming first half of predictions are means and second half are log variances
+        means, log_vars = preds[:, :preds.shape[1]//2], preds[:, preds.shape[1]//2:]
+        error = y - means
+        return torch.mean(0.5 * torch.exp(-log_vars) * error * error + 0.5 * log_vars)
+
+    model.fc = nn.Linear(in_features=model.fc.in_features, out_features=len(id2label), bias=True)
+    def dropout(model, rate):
+        for name, module in model.named_children():
+            if len(list(module.children())) > 0:
+                dropout(module, rate)
+            if isinstance(module, nn.ReLU):
+                new = nn.Sequential(module, nn.Dropout2d(p=rate))
+                setattr(model, name, new)
+    model.conv1 = nn.Conv2d(num_channels, 64, kernel_size=7, stride=2, padding=3,
+                                bias=False)
+    dropout(model, 0.1)
 
     from torchvision.transforms import (CenterCrop, 
                                         Compose, 
@@ -113,26 +122,9 @@ if __name__ == "__main__":
         labels = torch.tensor(np.array([example["labels"] for example in examples]))
         return {"pixel_values": pixel_values, "labels": labels}
 
-    args = TrainingArguments(
-        f"./temp/{out_name}",
-        save_strategy="epoch",
-        evaluation_strategy="epoch",
-        num_train_epochs=num_epochs,
-        weight_decay=weight_decay_rate,
-        load_best_model_at_end=True,
-        logging_dir='logs',
-        remove_unused_columns=False,
-        per_device_train_batch_size = per_device_train_batch_size,
-        per_device_eval_batch_size = per_device_eval_batch_size,
-    )
-
-    trainer = DropoutTrainer(
-        model,
-        args,
-        train_dataset= data[subset],
-        eval_dataset= data["validation"],
-        data_collator=collate_fn
-    )
+    train_dataloader = DataLoader(data["train"], collate_fn=collate_fn, batch_size=per_device_train_batch_size)
+    val_dataloader = DataLoader(data["validation"], collate_fn=collate_fn, batch_size=per_device_eval_batch_size)
+    
 
     # try:
     #     print("Loading model")
@@ -142,18 +134,81 @@ if __name__ == "__main__":
     # except:
     print("Model not found")
     print("Training model")
-    trainer.train()
-    trainer.save_model(out_dir)
+
+    def train_model(model, 
+                    data_loader, 
+                    val_data_loader,
+                    dataset_size, 
+                    val_size, 
+                    optimizer, 
+                    num_epochs):
+        model.to(device)
+        criterion = neg_log_likelihood
+        for epoch in range(num_epochs):
+            print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+            print('-' * 10)
+            model.train()
+            running_loss = 0.0
+            # Iterate over data.
+            for bi, d in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
+                inputs = d["pixel_values"]
+                labels = d["labels"]
+                inputs = inputs.to(device, dtype=torch.float)
+                labels = labels.to(device, dtype=torch.float)
+
+                optimizer.zero_grad()
+
+                with torch.set_grad_enabled(True):
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+                    loss.backward()
+                    optimizer.step()
+
+                running_loss += loss.item() * inputs.size(0)
+            epoch_loss = running_loss / dataset_size
+            print('Loss: {:.4f}'.format(epoch_loss))
+            
+            model.eval()
+            running_loss = 0.0
+            # Iterate over data.
+            for bi, d in tqdm.tqdm(enumerate(val_data_loader), total=len(val_data_loader)):
+                inputs = d["pixel_values"]
+                labels = d["labels"]
+                inputs = inputs.to(device, dtype=torch.float)
+                labels = labels.to(device, dtype=torch.float)
+
+                with torch.no_grad():
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+                running_loss += loss.item() * inputs.size(0)
+            epoch_val_loss = running_loss / val_size
+            print('Val Loss: {:.4f}'.format(epoch_val_loss))
+        return model
+    
+    optimizer = AdamW(model.parameters(),
+        lr=learning_rate,
+        weight_decay=weight_decay_rate)
+    
+    model = train_model(model, train_dataloader, val_dataloader, len(data["train"]), \
+                        len(data["validation"]), optimizer, num_epochs)
+
+    torch.save(model.state_dict(), out_dir + "pytorch_model.bin")
 
     n_pred = 10
     preds = np.empty((n_pred, len(data["validation"]), len(labels)*2))
+    label_ids = []
     for i in range(n_pred):
         if i % 2 == 0: 
             print(i)
-        ps = trainer.predict(data["validation"])
-        preds[i] = ps.predictions
-        if i == 0:
-            label_ids = ps.label_ids
+        model.train()
+        for bi, d in enumerate(tqdm.tqdm(val_dataloader)):
+            inputs = d["pixel_values"]
+            inputs = inputs.to(device, dtype=torch.float)
+            outputs = model(inputs)
+            if i == 0:
+                label_ids += d["labels"]
+            preds[i, bi*per_device_eval_batch_size:(bi+1)*per_device_eval_batch_size] \
+                  = outputs.detach().cpu().numpy()
 
     np.save(out_dir + "preds.npy", preds)
     np.save(out_dir + "label_ids.npy", label_ids)
