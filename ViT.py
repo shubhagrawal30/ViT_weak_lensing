@@ -10,7 +10,7 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from sklearn.preprocessing import MinMaxScaler
 
-    import sys
+    import sys, os, gc, tqdm, joblib
     sys.path.append("./scripts/")
     from TrainerWithDropout import DropoutTrainer
     from ViTwithNLL import NLLViT
@@ -20,10 +20,14 @@ if __name__ == "__main__":
 
     date = "20230711"
     # out_name = f"{date}_vit_noisy_2_params"
-    out_name = f"{date}_vit_noisy_6_params" #+ "_no_norm"
+    # CUDA=1 is with norm, CUDA=2 is without norm
+    out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
     # out_name = f"{date}_vit_6_params"
     out_dir = f"./models/{out_name}/"
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    Path(out_dir + "scalers/").mkdir(parents=True, exist_ok=True)
+
+    normalize = lambda img: img
+    # normalize = lambda img: (img - torch.mean(img)) / torch.std(img)
 
     subset = "train"
     
@@ -36,8 +40,8 @@ if __name__ == "__main__":
     # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
-    per_device_eval_batch_size = 128
-    num_epochs = 25
+    per_device_eval_batch_size = 256
+    num_epochs = 200
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
@@ -50,13 +54,26 @@ if __name__ == "__main__":
 
     data = load_dataset("./data/20230419_224x224/20230419_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
 
-    scalers = [MinMaxScaler() for _ in labels]
-    for ind, label in enumerate(labels):
-        for subset in ["train", "validation", "test"]:
-            if subset == "train":
-                scalers[ind].fit(np.array(data[subset][label]).reshape(-1, 1))
-            scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
-            data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1)) 
+    try:
+        print("trying to load scalers")
+        scalers = [joblib.load(out_dir + "scalers/" + label + ".pkl") for label in labels]
+        for ind, label in enumerate(labels):
+            for subset in ["train", "validation", "test"]:
+                scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
+                data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1))
+    except:
+        print("scalers not found")
+        scalers = [MinMaxScaler() for _ in labels]
+        for ind, label in enumerate(labels):
+            for subset in ["train", "validation", "test"]:
+                if subset == "train":
+                    scalers[ind].fit(np.array(data[subset][label]).reshape(-1, 1))
+                scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
+                data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1)) 
+        print("saving scalers")
+        for ind, scaler in enumerate(scalers):
+            joblib.dump(scaler, out_dir + "scalers/" + labels[ind] + ".pkl")
+
 
     checkpoint = "google/vit-base-patch16-224-in21k"
     model = NLLViT.from_pretrained(checkpoint,
@@ -74,8 +91,6 @@ if __name__ == "__main__":
                                         RandomResizedCrop, 
                                         Resize, 
                                         ToTensor)
-
-    normalize = lambda img: (img - torch.mean(img)) / torch.std(img)
 
     train_data_augmentation = Compose(
             [
@@ -137,12 +152,12 @@ if __name__ == "__main__":
     # try:
     #     print("Loading model")
     #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    #     trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
-    #                                 "/checkpoint-140/pytorch_model.bin"))
+    # trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
+    #                             "/checkpoint-1820/pytorch_model.bin"))
     # except:
-    print("Model not found")
+    # print("Model not found")
     print("Training model")
-    trainer.train()
+    trainer.train(resume_from_checkpoint=True)
     trainer.save_model(out_dir)
 
     n_pred = 10

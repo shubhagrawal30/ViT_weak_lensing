@@ -147,3 +147,5 @@ models/
 **/temp/
 
 scripts/copy_data.sh
+
+**/sbi-logs/

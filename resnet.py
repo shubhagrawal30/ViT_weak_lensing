@@ -9,7 +9,7 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from sklearn.preprocessing import MinMaxScaler
     from transformers import AdamW
-    import tqdm
+    import tqdm, gc, os, datetime, joblib
 
     import sys
     sys.path.append("./scripts/")
@@ -18,11 +18,25 @@ if __name__ == "__main__":
     print(device)
 
     date = "20230715"
-    out_name = f"{date}_resnet_noisy_6_params" #+ "_no_norm"
+    out_name = f"{date}_resnet_noisy_6_params" + "_no_norm"
     out_dir = f"./models/{out_name}/"
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
+    logs_dir = f"./temp/{out_name}/"
+    Path(out_dir + "/scalers").mkdir(parents=True, exist_ok=True)
+    Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
+
+    # normalize = lambda img: (img - torch.mean(img)) / torch.std(img)
+    normalize = lambda img: img
     subset = "train"
+
+    log_file_path = logs_dir + "logs.txt"
+    overwrite_logs = False
+    if overwrite_logs:
+        if os.path.exists(log_file_path):
+            os.remove(log_file_path)
+    else:
+        with open(log_file_path, "a") as f:
+            f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
     
     dataset = "noisy"
     num_channels = 40
@@ -33,8 +47,8 @@ if __name__ == "__main__":
     # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
-    per_device_eval_batch_size = 128
-    num_epochs = 5
+    per_device_eval_batch_size = 256
+    num_epochs = 50
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
@@ -47,13 +61,25 @@ if __name__ == "__main__":
 
     data = load_dataset("./data/20230419_224x224/20230419_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
 
-    scalers = [MinMaxScaler() for _ in labels]
-    for ind, label in enumerate(labels):
-        for subset in ["train", "validation", "test"]:
-            if subset == "train":
-                scalers[ind].fit(np.array(data[subset][label]).reshape(-1, 1))
-            scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
-            data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1)) 
+    try:
+        print("trying to load scalers")
+        scalers = [joblib.load(out_dir + "scalers/" + label + ".pkl") for label in labels]
+        for ind, label in enumerate(labels):
+            for subset in ["train", "validation", "test"]:
+                scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
+                data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1))
+    except:
+        print("scalers not found")
+        scalers = [MinMaxScaler() for _ in labels]
+        for ind, label in enumerate(labels):
+            for subset in ["train", "validation", "test"]:
+                if subset == "train":
+                    scalers[ind].fit(np.array(data[subset][label]).reshape(-1, 1))
+                scaled_values = scalers[ind].transform(np.array(data[subset][label]).reshape(-1, 1))
+                data[subset] = data[subset].add_column("scaled_" + label, scaled_values.reshape(-1)) 
+        print("saving scalers")
+        for ind, scaler in enumerate(scalers):
+            joblib.dump(scaler, out_dir + "scalers/" + labels[ind] + ".pkl")
 
     model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
 
@@ -83,8 +109,6 @@ if __name__ == "__main__":
                                         RandomResizedCrop, 
                                         Resize, 
                                         ToTensor)
-
-    normalize = lambda img: (img - torch.mean(img)) / torch.std(img)
 
     train_data_augmentation = Compose(
             [
@@ -144,45 +168,75 @@ if __name__ == "__main__":
                     num_epochs):
         model.to(device)
         criterion = neg_log_likelihood
+
+        best_loss = np.inf
+        best_epoch = -1
         for epoch in range(num_epochs):
-            print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-            print('-' * 10)
-            model.train()
-            running_loss = 0.0
-            # Iterate over data.
-            for bi, d in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
-                inputs = d["pixel_values"]
-                labels = d["labels"]
-                inputs = inputs.to(device, dtype=torch.float)
-                labels = labels.to(device, dtype=torch.float)
+            with open(log_file_path, "a") as f:
+                if os.path.exists(logs_dir + f"chkpt{epoch}.bin"):
+                    model.load_state_dict(torch.load(logs_dir + f"chkpt{epoch}.bin"))
+                    f.write(f"Loaded checkpoint {epoch}\n")
+                    print(f"Loaded checkpoint {epoch}")
+                    continue
+                print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+                print('-' * 10)
+                f.write(f"Starting Epoch {epoch}\n")
+                model.train()
+                running_loss = 0.0
+                # Iterate over data.
+                for bi, d in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
+                    inputs = d["pixel_values"]
+                    labels = d["labels"]
+                    inputs = inputs.to(device, dtype=torch.float)
+                    labels = labels.to(device, dtype=torch.float)
 
-                optimizer.zero_grad()
+                    optimizer.zero_grad()
 
-                with torch.set_grad_enabled(True):
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
-                    loss.backward()
-                    optimizer.step()
+                    with torch.set_grad_enabled(True):
+                        outputs = model(inputs)
+                        loss = criterion(outputs, labels)
+                        loss.backward()
+                        optimizer.step()
 
-                running_loss += loss.item() * inputs.size(0)
-            epoch_loss = running_loss / dataset_size
-            print('Loss: {:.4f}'.format(epoch_loss))
-            
-            model.eval()
-            running_loss = 0.0
-            # Iterate over data.
-            for bi, d in tqdm.tqdm(enumerate(val_data_loader), total=len(val_data_loader)):
-                inputs = d["pixel_values"]
-                labels = d["labels"]
-                inputs = inputs.to(device, dtype=torch.float)
-                labels = labels.to(device, dtype=torch.float)
+                    running_loss += loss.item() * inputs.size(0)
+                    del inputs, labels, outputs, loss, d, bi
+                    gc.collect()
 
-                with torch.no_grad():
-                    outputs = model(inputs)
-                    loss = criterion(outputs, labels)
-                running_loss += loss.item() * inputs.size(0)
-            epoch_val_loss = running_loss / val_size
-            print('Val Loss: {:.4f}'.format(epoch_val_loss))
+                epoch_loss = running_loss / dataset_size
+                print('Loss: {:.4f}'.format(epoch_loss))
+                f.write(f"Epoch {epoch} Loss: {epoch_loss}\n")
+                
+                model.eval()
+                running_loss = 0.0
+                # Iterate over data.
+                for bi, d in tqdm.tqdm(enumerate(val_data_loader), total=len(val_data_loader)):
+                    inputs = d["pixel_values"]
+                    labels = d["labels"]
+                    inputs = inputs.to(device, dtype=torch.float)
+                    labels = labels.to(device, dtype=torch.float)
+
+                    with torch.no_grad():
+                        outputs = model(inputs)
+                        loss = criterion(outputs, labels)
+                    running_loss += loss.item() * inputs.size(0)
+                    del inputs, labels, outputs, loss, d, bi
+                    gc.collect()
+                epoch_val_loss = running_loss / val_size
+                print('Val Loss: {:.4f}'.format(epoch_val_loss))
+                f.write(f"Epoch {epoch} Val Loss: {epoch_val_loss}\n")
+
+                if epoch_val_loss < best_loss:
+                    best_loss = epoch_val_loss
+                    best_epoch = epoch
+                    f.write(f"Best epoch: {best_epoch}\n")
+                    print(f"Best epoch: {best_epoch}")
+                    torch.save(model.state_dict(), out_dir + "best.bin")
+                    np.save(out_dir + "best_epoch.npy", np.array([best_epoch]))
+                    
+                torch.save(model.state_dict(), logs_dir + f"chkpt{epoch}.bin")
+                del epoch_loss, epoch_val_loss, running_loss
+                gc.collect()
+
         return model
     
     optimizer = AdamW(model.parameters(),
@@ -209,7 +263,10 @@ if __name__ == "__main__":
                 label_ids += d["labels"]
             preds[i, bi*per_device_eval_batch_size:(bi+1)*per_device_eval_batch_size] \
                   = outputs.detach().cpu().numpy()
+            del inputs, outputs, d, bi
+            gc.collect()
 
+    label_ids = np.array(label_ids)
     np.save(out_dir + "preds.npy", preds)
     np.save(out_dir + "label_ids.npy", label_ids)
 
