@@ -29,7 +29,7 @@ if __name__ == "__main__":
     normalize = lambda img: img
     subset = "train"
 
-    log_file_path = logs_dir + "logs.txt"
+    log_file_path = logs_dir + "logs_val.txt"
     overwrite_logs = False
     if overwrite_logs:
         if os.path.exists(log_file_path):
@@ -177,34 +177,36 @@ if __name__ == "__main__":
                     model.load_state_dict(torch.load(logs_dir + f"chkpt{epoch}.bin"))
                     f.write(f"Loaded checkpoint {epoch}\n")
                     print(f"Loaded checkpoint {epoch}")
-                    continue
-                print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-                print('-' * 10)
-                f.write(f"Starting Epoch {epoch}\n")
-                model.train()
-                running_loss = 0.0
-                # Iterate over data.
-                for bi, d in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
-                    inputs = d["pixel_values"]
-                    labels = d["labels"]
-                    inputs = inputs.to(device, dtype=torch.float)
-                    labels = labels.to(device, dtype=torch.float)
+                    # continue
+                else:
+                    print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+                    print('-' * 10)
+                    f.write(f"Starting Epoch {epoch}\n")
+                    model.train()
+                    running_loss = 0.0
+                    # Iterate over data.
+                    for bi, d in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
+                        inputs = d["pixel_values"]
+                        labels = d["labels"]
+                        inputs = inputs.to(device, dtype=torch.float)
+                        labels = labels.to(device, dtype=torch.float)
 
-                    optimizer.zero_grad()
+                        optimizer.zero_grad()
 
-                    with torch.set_grad_enabled(True):
-                        outputs = model(inputs)
-                        loss = criterion(outputs, labels)
-                        loss.backward()
-                        optimizer.step()
+                        with torch.set_grad_enabled(True):
+                            outputs = model(inputs)
+                            loss = criterion(outputs, labels)
+                            loss.backward()
+                            optimizer.step()
 
-                    running_loss += loss.item() * inputs.size(0)
-                    del inputs, labels, outputs, loss, d, bi
-                    gc.collect()
+                        running_loss += loss.item() * inputs.size(0)
+                        del inputs, labels, outputs, loss, d, bi
+                        gc.collect()
 
-                epoch_loss = running_loss / dataset_size
-                print('Loss: {:.4f}'.format(epoch_loss))
-                f.write(f"Epoch {epoch} Loss: {epoch_loss}\n")
+                    epoch_loss = running_loss / dataset_size
+                    print('Loss: {:.4f}'.format(epoch_loss))
+                    f.write(f"Epoch {epoch} Loss: {epoch_loss}\n")
+                    del epoch_loss, running_loss
                 
                 model.eval()
                 running_loss = 0.0
@@ -234,7 +236,8 @@ if __name__ == "__main__":
                     np.save(out_dir + "best_epoch.npy", np.array([best_epoch]))
                     
                 torch.save(model.state_dict(), logs_dir + f"chkpt{epoch}.bin")
-                del epoch_loss, epoch_val_loss, running_loss
+                # del epoch_loss, epoch_val_loss, running_loss
+                del epoch_val_loss, running_loss
                 gc.collect()
 
         return model

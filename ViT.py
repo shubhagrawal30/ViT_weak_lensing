@@ -152,34 +152,43 @@ if __name__ == "__main__":
     # try:
     #     print("Loading model")
     #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    # trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
-    #                             "/checkpoint-1820/pytorch_model.bin"))
+    trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
+                                "/checkpoint-2758/pytorch_model.bin"))
     # except:
     # print("Model not found")
-    print("Training model")
-    trainer.train(resume_from_checkpoint=True)
-    trainer.save_model(out_dir)
+    # print("Training model")
+    # trainer.train(resume_from_checkpoint=True)
+    # trainer.save_model(out_dir)
 
-    n_pred = 10
-    preds = np.empty((n_pred, len(data["validation"]), len(labels)*2))
-    for i in range(n_pred):
-        if i % 2 == 0: 
-            print(i)
-        ps = trainer.predict(data["validation"])
-        preds[i] = ps.predictions
-        if i == 0:
-            label_ids = ps.label_ids
+    n_pred = 100
+    save_after = 10
+    for ind in range(n_pred // save_after):
+        print(ind)
+        if os.path.exists(out_dir + f"preds{ind}.npy"):
+            print("skipping iteration", ind)
+            continue
+        preds = np.empty((save_after, len(data["test"]), len(labels)*2))
+        for i in range(save_after):
+            print(ind, i)
+            ps = trainer.predict(data["test"])
+            preds[i] = ps.predictions
+            if i == 0:
+                label_ids = ps.label_ids
+        np.save(out_dir + f"preds{ind}.npy", preds)
+        np.save(out_dir + f"label_ids{ind}.npy", label_ids)
 
-    np.save(out_dir + "preds.npy", preds)
-    np.save(out_dir + "label_ids.npy", label_ids)
+    preds = np.concatenate([np.load(out_dir + f"preds{i}.npy") for i in range(n_pred // save_after)], axis=0)
+    label_ids = np.concatenate([np.load(out_dir + f"label_ids{i}.npy") for i in range(n_pred // save_after)], axis=0)
+    print(preds.shape, label_ids.shape)
 
     preds_best, preds_std = preds[:,:, :preds.shape[-1]//2], preds[:,:, preds.shape[-1]//2:]
     print(preds.shape, preds_best.shape, preds_std.shape)
 
-    predictions = np.empty((preds_best.shape[0] * 100, preds_best.shape[1], preds_best.shape[2]))
+    n_preds_per_sample = 10
+    predictions = np.empty((preds_best.shape[0] * n_preds_per_sample, preds_best.shape[1], preds_best.shape[2]))
     for i in range(preds_best.shape[0]):
-        for j in range(100):
-            predictions[i*100+j] = np.random.normal(preds_best[i], np.exp(preds_std[i]))
+        for j in range(n_preds_per_sample):
+            predictions[i*n_preds_per_sample+j] = np.random.normal(preds_best[i], np.exp(preds_std[i]))
 
     for ind, scaler in enumerate(scalers):
         predictions[:, :, ind:ind+1] = scaler.inverse_transform(\
