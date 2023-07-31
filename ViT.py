@@ -18,11 +18,13 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230711"
-    # out_name = f"{date}_vit_noisy_2_params"
-    # CUDA=1 is with norm, CUDA=2 is without norm
-    out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
-    # out_name = f"{date}_vit_6_params"
+    # date = "20230711"
+    date = "20230725"
+    # out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
+    dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
+    out_name = f"{date}_vit_{dataset}"
+    # out_name = f"{date}_vit_DES_half_sky"
+    # out_name = f"{date}_vit_DES"
     out_dir = f"./models/{out_name}/"
     Path(out_dir + "scalers/").mkdir(parents=True, exist_ok=True)
 
@@ -31,8 +33,9 @@ if __name__ == "__main__":
 
     subset = "train"
     
-    dataset = "noisy"
-    num_channels = 40
+    num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
+                    "noisy": 40, "noiseless": 4}[dataset]
+    # dataset = "noisy"
     # dataset = "noiseless"
     # num_channels = 4
     
@@ -51,6 +54,7 @@ if __name__ == "__main__":
 
     print(id2label)
     print(label2id)
+    print(dataset, num_channels)
 
     data = load_dataset("./data/20230419_224x224/20230419_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
 
@@ -152,15 +156,19 @@ if __name__ == "__main__":
     # try:
     #     print("Loading model")
     #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
-                                "/checkpoint-2758/pytorch_model.bin"))
+    # trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
+    #                             "/checkpoint-2758/pytorch_model.bin"))
     # except:
     # print("Model not found")
-    # print("Training model")
-    # trainer.train(resume_from_checkpoint=True)
-    # trainer.save_model(out_dir)
+    print("Training model")
+    try:
+        trainer.train(resume_from_checkpoint=True)
+    except:
+        trainer.train()
+    trainer.save_model(out_dir)
 
-    n_pred = 100
+
+    n_pred = 10
     save_after = 10
     for ind in range(n_pred // save_after):
         print(ind)
@@ -184,7 +192,7 @@ if __name__ == "__main__":
     preds_best, preds_std = preds[:,:, :preds.shape[-1]//2], preds[:,:, preds.shape[-1]//2:]
     print(preds.shape, preds_best.shape, preds_std.shape)
 
-    n_preds_per_sample = 10
+    n_preds_per_sample = 100
     predictions = np.empty((preds_best.shape[0] * n_preds_per_sample, preds_best.shape[1], preds_best.shape[2]))
     for i in range(preds_best.shape[0]):
         for j in range(n_preds_per_sample):

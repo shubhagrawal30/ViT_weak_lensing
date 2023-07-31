@@ -80,27 +80,15 @@ class NewDataset(datasets.GeneratorBasedBuilder):
     def _info(self):
         # TODO: This method specifies the datasets.DatasetInfo object which contains informations and typings for the dataset
         if self.config.name == "noiseless":  # This is the name of the configuration selected in BUILDER_CONFIGS above
-            features = datasets.Features(
-                {   
-                    "As": datasets.Value("float32"),
-                    "bary_Mc": datasets.Value("float32"),
-                    "bary_nu": datasets.Value("float32"),
-                    "H0": datasets.Value("float32"),
-                    "O_cdm": datasets.Value("float32"),
-                    "O_nu": datasets.Value("float32"),
-                    "Ob": datasets.Value("float32"),
-                    "Om": datasets.Value("float32"),
-                    "ns": datasets.Value("float32"),
-                    "s8": datasets.Value("float32"),
-                    "w0": datasets.Value("float32"),
-                    "sim_type": datasets.Value("string"),
-                    "sim_name": datasets.Value("string"),
-                    "map": datasets.Array3D(shape=(224, 224, 4), dtype="float32")
-                    # These are the features of your dataset like images, labels ...
-                }
-            )
+            shape = (224, 224, 4)
+        elif self.config.name == "DES_one_bin":
+            shape = (224, 224, 10)
+        elif self.config.name == "DES_half_sky":
+            shape = (224, 224, 20)
         else:
-            features = datasets.Features(
+            shape = (224, 224, 40)
+
+        features = datasets.Features(
                 {   
                     "As": datasets.Value("float32"),
                     "bary_Mc": datasets.Value("float32"),
@@ -115,7 +103,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                     "w0": datasets.Value("float32"),
                     "sim_type": datasets.Value("string"),
                     "sim_name": datasets.Value("string"),
-                    "map": datasets.Array3D(shape=(224, 224, 40), dtype="float32")
+                    "map": datasets.Array3D(shape=shape, dtype="float32")
                     # These are the features of your dataset like images, labels ...
                 }
             )
@@ -233,6 +221,49 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                     for i in range(7):
                         d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
                         d += np.random.normal(0, STD_NOISE, d.shape) / 4
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                elif self.config.name == "DES":
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d += np.random.normal(0, SHAPE_NOISE / np.sqrt(N_GALAXY / 4), d.shape) 
+                        # divide n_gal by 4 for 4 z-bins
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                elif self.config.name == "DES_one_bin":
+                    # keep only one z-bin from each patch
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d = d[:, :, 2::4] # choose only one z-bin for each patch, third DES bin
+                        d += np.random.normal(0, SHAPE_NOISE / np.sqrt(N_GALAXY / 4), d.shape) 
+                        # divide n_gal by 4 for 4 z-bins
+                        yield key, {
+                            "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
+                            "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,
+                            "ns": ns, "s8": s8, "w0": w0,
+                            "sim_type": sim_type, "sim_name": sim_name,
+                            "map": d
+                        }
+                        key += 1
+                elif self.config.name == "DES_half_sky":
+                    # keep only one z-bin from each patch
+                    for i in range(7):
+                        d = np.array(dat[i*10: (i+1)*10]).transpose((1, 2, 0, 3)).reshape((224, 224, -1))
+                        d = d[:, :, :20]
+                        d += np.random.normal(0, SHAPE_NOISE / np.sqrt(N_GALAXY / 4), d.shape) 
+                        # divide n_gal by 4 for 4 z-bins
                         yield key, {
                             "As": As, "bary_Mc": bary_Mc, "bary_nu": bary_nu, "H0": H0,
                             "O_cdm": O_cdm, "O_nu": O_nu, "Ob": Ob, "Om": Om,

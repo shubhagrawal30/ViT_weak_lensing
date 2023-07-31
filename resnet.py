@@ -17,11 +17,15 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230715"
-    out_name = f"{date}_resnet_noisy_6_params" + "_no_norm"
+    dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
+    date = "20230728"
+    num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
+                    "noisy": 40, "noiseless": 4}[dataset]
+    out_name = f"{date}_resnet_{dataset}"
     out_dir = f"./models/{out_name}/"
     logs_dir = f"./temp/{out_name}/"
     Path(out_dir + "/scalers").mkdir(parents=True, exist_ok=True)
+    Path(logs_dir + "/chkpts").mkdir(parents=True, exist_ok=True)
     Path(logs_dir).mkdir(parents=True, exist_ok=True)
 
 
@@ -29,26 +33,21 @@ if __name__ == "__main__":
     normalize = lambda img: img
     subset = "train"
 
-    log_file_path = logs_dir + "logs_val.txt"
-    overwrite_logs = False
+    log_file_path = logs_dir + "logs.txt"
+    overwrite_logs = True
     if overwrite_logs:
         if os.path.exists(log_file_path):
             os.remove(log_file_path)
     else:
         with open(log_file_path, "a") as f:
             f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
-    
-    dataset = "noisy"
-    num_channels = 40
-    # dataset = "noiseless"
-    # num_channels = 4
-    
+        
     labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
     # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 256
-    num_epochs = 50
+    num_epochs = 200
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
@@ -173,11 +172,12 @@ if __name__ == "__main__":
         best_epoch = -1
         for epoch in range(num_epochs):
             with open(log_file_path, "a") as f:
-                if os.path.exists(logs_dir + f"chkpt{epoch}.bin"):
-                    model.load_state_dict(torch.load(logs_dir + f"chkpt{epoch}.bin"))
+                if os.path.exists(logs_dir + f"chkpts/{epoch}.bin"):
+                    # if epoch == 38:
+                    model.load_state_dict(torch.load(logs_dir + f"chkpts/{epoch}.bin"))
                     f.write(f"Loaded checkpoint {epoch}\n")
                     print(f"Loaded checkpoint {epoch}")
-                    # continue
+                    continue
                 else:
                     print('Epoch {}/{}'.format(epoch, num_epochs - 1))
                     print('-' * 10)
@@ -235,7 +235,7 @@ if __name__ == "__main__":
                     torch.save(model.state_dict(), out_dir + "best.bin")
                     np.save(out_dir + "best_epoch.npy", np.array([best_epoch]))
                     
-                torch.save(model.state_dict(), logs_dir + f"chkpt{epoch}.bin")
+                torch.save(model.state_dict(), logs_dir + f"chkpts/{epoch}.bin")
                 # del epoch_loss, epoch_val_loss, running_loss
                 del epoch_val_loss, running_loss
                 gc.collect()
