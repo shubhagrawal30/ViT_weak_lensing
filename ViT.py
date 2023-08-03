@@ -10,7 +10,7 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from sklearn.preprocessing import MinMaxScaler
 
-    import sys, os, gc, tqdm, joblib
+    import sys, os, gc, tqdm, joblib, json
     sys.path.append("./scripts/")
     from TrainerWithDropout import DropoutTrainer
     from ViTwithNLL import NLLViT
@@ -156,17 +156,25 @@ if __name__ == "__main__":
     # try:
     #     print("Loading model")
     #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    # trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
-    #                             "/checkpoint-2758/pytorch_model.bin"))
+    chkpts = os.listdir("./temp/" + out_name)
+    chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
+    highest_chkpt = max(chkpts)
+    with open(f"./temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
+        checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
+
+    print("Loading model from", checkpoint_path)
+    trainer.model.load_state_dict(torch.load(checkpoint_path))
     # except:
     # print("Model not found")
-    print("Training model")
-    try:
-        trainer.train(resume_from_checkpoint=True)
-    except:
-        trainer.train()
-    trainer.save_model(out_dir)
+    # print("Training model")
+    # try:
+    #     trainer.train(resume_from_checkpoint=True)
+    # except:
+    #     trainer.train()
+    # trainer.save_model(out_dir)
 
+    with open(out_dir + "preds_model.txt", "w") as f:
+        f.write(checkpoint_path)
 
     n_pred = 10
     save_after = 10

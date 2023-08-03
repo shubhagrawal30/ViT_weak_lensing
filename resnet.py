@@ -34,7 +34,7 @@ if __name__ == "__main__":
     subset = "train"
 
     log_file_path = logs_dir + "logs.txt"
-    overwrite_logs = True
+    overwrite_logs = False
     if overwrite_logs:
         if os.path.exists(log_file_path):
             os.remove(log_file_path)
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 256
-    num_epochs = 200
+    num_epochs = 50
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
