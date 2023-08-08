@@ -238,3 +238,6 @@ if __name__ == "__main__":
         ax.grid()
     plt.savefig(out_dir + "pred-true.png")
     plt.close()
+
+    with open(out_dir + "preds_model.txt", "a") as f:
+        f.write("\n" + out_dir + "pred-true.png")

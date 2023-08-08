@@ -9,7 +9,7 @@ if __name__ == "__main__":
     from torch.utils.data import DataLoader
     from sklearn.preprocessing import MinMaxScaler
     from transformers import AdamW
-    import tqdm, gc, os, datetime, joblib
+    import tqdm, gc, os, datetime, joblib, glob
 
     import sys
     sys.path.append("./scripts/")
@@ -147,6 +147,7 @@ if __name__ == "__main__":
 
     train_dataloader = DataLoader(data["train"], collate_fn=collate_fn, batch_size=per_device_train_batch_size)
     val_dataloader = DataLoader(data["validation"], collate_fn=collate_fn, batch_size=per_device_eval_batch_size)
+    test_dataloader = DataLoader(data["test"], collate_fn=collate_fn, batch_size=per_device_eval_batch_size)
     
 
     # try:
@@ -246,32 +247,62 @@ if __name__ == "__main__":
         lr=learning_rate,
         weight_decay=weight_decay_rate)
     
-    model = train_model(model, train_dataloader, val_dataloader, len(data["train"]), \
-                        len(data["validation"]), optimizer, num_epochs)
+    # model = train_model(model, train_dataloader, val_dataloader, len(data["train"]), \
+    #                     len(data["validation"]), optimizer, num_epochs)
 
-    torch.save(model.state_dict(), out_dir + "pytorch_model.bin")
+    # torch.save(model.state_dict(), out_dir + "pytorch_model.bin")
+
+    history_files = glob.glob(logs_dir + "/*logs*")
+
+    rn_val_loss = []
+    rn_epochs = []
+    for history_file in history_files:
+        with open(history_file, "r") as f:
+            for line in f.readlines():
+                if not "Val Loss" in line:
+                    continue
+                rn_val_loss += [float(line.split()[-1])]
+                rn_epochs += [int(line.split()[1])]
+
+    best_epoch = rn_epochs[np.argmin(rn_val_loss)]
+    chkpt_path = logs_dir + f"chkpts/{best_epoch}.bin"
+    model.load_state_dict(torch.load(chkpt_path))
+    model.to(device)
+
+    with open(out_dir + "preds_model.txt", "w") as f:
+        f.write(chkpt_path)
 
     n_pred = 10
-    preds = np.empty((n_pred, len(data["validation"]), len(labels)*2))
-    label_ids = []
-    for i in range(n_pred):
-        if i % 2 == 0: 
-            print(i)
-        model.train()
-        for bi, d in enumerate(tqdm.tqdm(val_dataloader)):
-            inputs = d["pixel_values"]
-            inputs = inputs.to(device, dtype=torch.float)
-            outputs = model(inputs)
-            if i == 0:
-                label_ids += d["labels"]
-            preds[i, bi*per_device_eval_batch_size:(bi+1)*per_device_eval_batch_size] \
-                  = outputs.detach().cpu().numpy()
-            del inputs, outputs, d, bi
-            gc.collect()
+    save_after = 10
+    for ind in range(n_pred // save_after):
+        print(ind)
+        if os.path.exists(out_dir + f"preds{ind}.npy"):
+            print("skipping iteration", ind)
+            continue
+        preds = np.empty((save_after, len(data["test"]), len(labels)*2))
+        label_ids = []
+        for i in range(save_after):
+            print(ind, i)
+            model.train()
+            for bi, d in enumerate(tqdm.tqdm(test_dataloader, total=len(test_dataloader))):
+                inputs = d["pixel_values"]
+                inputs = inputs.to(device, dtype=torch.float)
+                outputs = model(inputs)
+                if i == 0:
+                    label_ids += d["labels"]
+                preds[i, bi*per_device_eval_batch_size:(bi+1)*per_device_eval_batch_size] \
+                        = outputs.detach().cpu().numpy()
+                del inputs, outputs, d, bi
+                gc.collect()
+        label_ids = np.array(label_ids)
+        np.save(out_dir + f"preds{ind}.npy", preds)
+        np.save(out_dir + f"label_ids{ind}.npy", label_ids)
+        del preds, label_ids
+        gc.collect()
 
-    label_ids = np.array(label_ids)
-    np.save(out_dir + "preds.npy", preds)
-    np.save(out_dir + "label_ids.npy", label_ids)
+    preds = np.concatenate([np.load(out_dir + f"preds{ind}.npy") for ind in range(n_pred // save_after)], axis=0)
+    label_ids = np.concatenate([np.load(out_dir + f"label_ids{ind}.npy") for ind in range(n_pred // save_after)], axis=0)
+    print(preds.shape, label_ids.shape)
 
     preds_best, preds_std = preds[:,:, :preds.shape[-1]//2], preds[:,:, preds.shape[-1]//2:]
     print(preds.shape, preds_best.shape, preds_std.shape)
@@ -313,3 +344,6 @@ if __name__ == "__main__":
         ax.grid()
     plt.savefig(out_dir + "pred-true.png")
     plt.close()
+
+    with open(out_dir + "preds_model.txt", "a") as f:
+        f.write("\n" + out_dir + "pred-true.png")
