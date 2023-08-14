@@ -17,14 +17,13 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    dataset = "noisy"
-    # dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
-    date = "20230715"
-    # num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
-    #                 "noisy": 40, "noiseless": 4}[dataset]
-    num_channels = 40
-    # out_name = f"{date}_resnet_{dataset}"
-    out_name = f"{date}_resnet_{dataset}_6_params_no_norm"
+    # dataset = "noisy"
+    dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
+    date = "20230813"
+    num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
+                    "noisy": 40, "noiseless": 4}[dataset]
+    # num_channels = 40
+    out_name = f"{date}_cnn_{dataset}"
     out_dir = f"./models/{out_name}/"
     logs_dir = f"./temp/{out_name}/"
     Path(out_dir + "/scalers").mkdir(parents=True, exist_ok=True)
@@ -83,7 +82,8 @@ if __name__ == "__main__":
         for ind, scaler in enumerate(scalers):
             joblib.dump(scaler, out_dir + "scalers/" + labels[ind] + ".pkl")
 
-    model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
+    from cnn_torch import CNN
+    model = CNN(num_channels=num_channels, num_classes=len(id2label), dropout=0.1)
 
     def neg_log_likelihood(preds, y):
         # assuming first half of predictions are means and second half are log variances
@@ -91,17 +91,6 @@ if __name__ == "__main__":
         error = y - means
         return torch.mean(0.5 * torch.exp(-log_vars) * error * error + 0.5 * log_vars)
 
-    model.fc = nn.Linear(in_features=model.fc.in_features, out_features=len(id2label), bias=True)
-    def dropout(model, rate):
-        for name, module in model.named_children():
-            if len(list(module.children())) > 0:
-                dropout(module, rate)
-            if isinstance(module, nn.ReLU):
-                new = nn.Sequential(module, nn.Dropout2d(p=rate))
-                setattr(model, name, new)
-    model.conv1 = nn.Conv2d(num_channels, 64, kernel_size=7, stride=2, padding=3,
-                                bias=False)
-    dropout(model, 0.1)
 
     from torchvision.transforms import (CenterCrop, 
                                         Compose, 
@@ -239,7 +228,7 @@ if __name__ == "__main__":
                     torch.save(model.state_dict(), out_dir + "best.bin")
                     np.save(out_dir + "best_epoch.npy", np.array([best_epoch]))
                     
-                torch.save(model.state_dict(), logs_dir + f"chkpts/chkpt{epoch}.bin")
+                torch.save(model.state_dict(), logs_dir + f"chkpts/{epoch}.bin")
                 # del epoch_loss, epoch_val_loss, running_loss
                 del epoch_val_loss, running_loss
                 gc.collect()
@@ -268,7 +257,7 @@ if __name__ == "__main__":
                 rn_epochs += [int(line.split()[1])]
 
     best_epoch = rn_epochs[np.argmin(rn_val_loss)]
-    chkpt_path = logs_dir + f"chkpts/chkpt{best_epoch}.bin"
+    chkpt_path = logs_dir + f"chkpts/{best_epoch}.bin"
     model.load_state_dict(torch.load(chkpt_path))
     model.to(device)
 

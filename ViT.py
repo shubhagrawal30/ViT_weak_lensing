@@ -18,11 +18,11 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    # date = "20230711"
-    date = "20230725"
-    # out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
-    dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
-    out_name = f"{date}_vit_{dataset}"
+    date = "20230711"
+    # date = "20230810"
+    out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
+    # dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
+    # out_name = f"{date}_vit_{dataset}"
     # out_name = f"{date}_vit_DES_half_sky"
     # out_name = f"{date}_vit_DES"
     out_dir = f"./models/{out_name}/"
@@ -33,18 +33,18 @@ if __name__ == "__main__":
 
     subset = "train"
     
-    num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
-                    "noisy": 40, "noiseless": 4}[dataset]
-    # dataset = "noisy"
+    # num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
+    #                 "noisy": 40, "noiseless": 4}[dataset]
+    dataset = "noisy"
     # dataset = "noiseless"
-    # num_channels = 4
+    num_channels = 40
     
     labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
     # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 256
-    num_epochs = 200
+    num_epochs = 250
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
@@ -156,22 +156,22 @@ if __name__ == "__main__":
     # try:
     #     print("Loading model")
     #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    chkpts = os.listdir("./temp/" + out_name)
-    chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
-    highest_chkpt = max(chkpts)
-    with open(f"./temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
-        checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
+    # chkpts = os.listdir("./temp/" + out_name)
+    # chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
+    # highest_chkpt = max(chkpts)
+    # with open(f"./temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
+    #     checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
 
-    print("Loading model from", checkpoint_path)
-    trainer.model.load_state_dict(torch.load(checkpoint_path))
+    # print("Loading model from", checkpoint_path)
+    # trainer.model.load_state_dict(torch.load(checkpoint_path))
     # except:
     # print("Model not found")
     # print("Training model")
-    # try:
-    #     trainer.train(resume_from_checkpoint=True)
-    # except:
-    #     trainer.train()
-    # trainer.save_model(out_dir)
+    try:
+        trainer.train(resume_from_checkpoint=True)
+    except:
+        trainer.train()
+    trainer.save_model(out_dir)
 
     with open(out_dir + "preds_model.txt", "w") as f:
         f.write(checkpoint_path)
