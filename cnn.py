@@ -148,7 +148,7 @@ if __name__ == "__main__":
     #     trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
     #                                 "/checkpoint-140/pytorch_model.bin"))
     # except:
-    print("Model not found")
+    # print("Model not found")
     print("Training model")
 
     def train_model(model, 
@@ -165,9 +165,9 @@ if __name__ == "__main__":
         best_epoch = -1
         for epoch in range(num_epochs):
             with open(log_file_path, "a") as f:
-                if os.path.exists(logs_dir + f"chkpts/chkpt{epoch}.bin"):
+                if os.path.exists(logs_dir + f"chkpts/{epoch}.bin"):
                     # if epoch == 38:
-                    model.load_state_dict(torch.load(logs_dir + f"chkpts/chkpt{epoch}.bin"))
+                    model.load_state_dict(torch.load(logs_dir + f"chkpts/{epoch}.bin"))
                     f.write(f"Loaded checkpoint {epoch}\n")
                     print(f"Loaded checkpoint {epoch}")
                     continue
