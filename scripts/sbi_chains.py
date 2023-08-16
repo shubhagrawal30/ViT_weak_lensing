@@ -7,8 +7,8 @@ from itertools import repeat
 
 def get_one_chain(args):
     start = time.time()
-    idx, preds, labels, num_samples, low, high = args
-    print(f"chain {idx}")
+    n, idx, preds, labels, num_samples, low, high = args
+    print(f"{n}: chain {idx}")
     x0, true = preds[idx], labels[idx]
 
     inds = np.delete(np.arange(preds.shape[0]), idx)
@@ -35,7 +35,7 @@ if __name__ == "__main__":
     num_preds = 1
     para_idx = (2, 4, 5)
     num_chains = 200
-    n_threads = 32
+    n_threads = 16
     num_samples = 10000
 
     try:
@@ -53,15 +53,16 @@ if __name__ == "__main__":
     chain_idx = np.random.choice(np.arange(preds.shape[0]), size=num_chains)
     low, high = np.min(labels, axis=0), np.max(labels, axis=0)
 
-    pool = mp.Pool(n_threads)
-    args = zip(chain_idx, repeat(preds), repeat(labels), repeat(num_samples), \
-               repeat(low), repeat(high))
-    if 0:
+    
+    args = zip(np.arange(num_chains), chain_idx, repeat(preds), repeat(labels), \
+               repeat(num_samples), repeat(low), repeat(high))
+    if False:
+        pool = mp.pool.ThreadPool(n_threads)
         results = pool.map(get_one_chain, args)
+        pool.close()
+        pool.join()
     else:
-        results = map(get_one_chain, args)
-    pool.close()
-    pool.join()
+        results = np.array(list(map(get_one_chain, args)))
 
     np.savez(out_file, chains=results, preds=preds[chain_idx], labels=labels[chain_idx])
 
