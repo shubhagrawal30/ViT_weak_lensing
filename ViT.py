@@ -18,35 +18,23 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230711"
-    # date = "20230810"
-    out_name = f"{date}_vit_noisy_6_params" + "_no_norm"
-    # dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
-    # out_name = f"{date}_vit_{dataset}"
-    # out_name = f"{date}_vit_DES_half_sky"
-    # out_name = f"{date}_vit_DES"
-    out_dir = f"./models/{out_name}/"
+    date = "20230828"
+    dataset = sys.argv[1]
+    out_name = f"{date}_VIT_{dataset}"
+    out_dir = f"./new/models/{out_name}/"
     Path(out_dir + "scalers/").mkdir(parents=True, exist_ok=True)
 
-    normalize = lambda img: img
-    # normalize = lambda img: (img - torch.mean(img)) / torch.std(img)
-
+    data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
     subset = "train"
-    
-    # num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
-    #                 "noisy": 40, "noiseless": 4}[dataset]
-    dataset = "noisy"
-    # dataset = "noiseless"
-    num_channels = 40
-    
     labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
-    # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 256
     num_epochs = 300
     learning_rate = 5e-5
     weight_decay_rate = 0.001
+
+    num_channels = np.array(data[subset][0]["map"]).shape[-1]
     
     id2label = {**{labels.index(label):label for label in labels}, \
                 **{(len(labels)+labels.index(label)): "ln_sig_" + label for label in labels}}
@@ -55,8 +43,6 @@ if __name__ == "__main__":
     print(id2label)
     print(label2id)
     print(dataset, num_channels)
-
-    data = load_dataset("./data/20230419_224x224/20230419_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
 
     try:
         print("trying to load scalers")
@@ -111,13 +97,11 @@ if __name__ == "__main__":
         )
 
     def preprocess_train(examples):
-        # examples["labels"] = np.transpose([examples[x] for x in examples.keys() if x != "map"]).astype(np.float32)
         examples["labels"] = np.transpose([examples["scaled_" + x] for x in labels]).astype(np.float32)
         examples['pixel_values'] = [train_data_augmentation(torch.swapaxes(torch.Tensor(np.array(image)), 0, 2)) for image in examples['map']]
         return examples
 
     def preprocess_val(examples):
-        # examples["labels"] = np.transpose([examples[x] for x in examples.keys() if x != "map"]).astype(np.float32)
         examples["labels"] = np.transpose([examples["scaled_" + x] for x in labels]).astype(np.float32)
         examples['pixel_values'] = [val_data_augmentation(torch.swapaxes(torch.Tensor(np.array(image)), 0, 2)) for image in examples['map']]
         return examples
@@ -133,7 +117,7 @@ if __name__ == "__main__":
         return {"pixel_values": pixel_values, "labels": labels}
 
     args = TrainingArguments(
-        f"./temp/{out_name}",
+        f"./new/temp/{out_name}",
         save_strategy="epoch",
         evaluation_strategy="epoch",
         num_train_epochs=num_epochs,
@@ -160,20 +144,14 @@ if __name__ == "__main__":
         trainer.train()
     trainer.save_model(out_dir)
 
-    # try:
-    #     print("Loading model")
-    #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    chkpts = os.listdir("./temp/" + out_name)
+    chkpts = os.listdir("./new/temp/" + out_name)
     chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
     highest_chkpt = max(chkpts)
-    with open(f"./temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
+    with open(f"./new/temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
         checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
 
-    # print("Loading model from", checkpoint_path)
-    # trainer.model.load_state_dict(torch.load(checkpoint_path))
-    # except:
-    # print("Model not found")
-    # print("Training model")
+    print("Loading model from", checkpoint_path)
+    trainer.model.load_state_dict(torch.load(checkpoint_path))
 
     with open(out_dir + "preds_model.txt", "w") as f:
         f.write(checkpoint_path)
@@ -220,15 +198,12 @@ if __name__ == "__main__":
 
     upp_lims = np.nanmax(plot_y, axis=0)
     low_lims = np.nanmin(plot_y, axis=0)
-    # fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 5))
     fig.subplots_adjust(wspace=0.3, hspace=0.2)
-    # plot_labels = [r"$\Omega_m$", r"$\sigma_8$"]
     plot_labels = [r"$H_0$", r"$\Omega_b$", r"$\Omega_m$", r"$n_s$", r"$\sigma_8$", r"$w_0$"]
     for ind, (label, ax, low_lim, upp_lim) in enumerate(zip(plot_labels, axs.ravel(), low_lims, upp_lims)):
         p = np.poly1d(np.polyfit(plot_y[:, ind], predictions_best[:, ind], 1))
         ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  predictions_std[:, ind][::10], marker="x", ls='none', alpha=0.4)
-        # ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  0, marker="x", ls='none', alpha=0.4)
         ax.set_xlabel("true")
         ax.set_ylabel("prediction")
         ax.plot([low_lim, upp_lim], [low_lim, upp_lim], color="black")
