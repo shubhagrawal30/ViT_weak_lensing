@@ -34,7 +34,7 @@ if __name__ == "__main__":
     out_file = f"../chains/{model_name}.npz"
     num_preds = 1
     para_idx = (2, 4, 5)
-    num_chains = 200
+    # num_chains = 200
     n_threads = 16
     num_samples = 10000
 
@@ -50,7 +50,10 @@ if __name__ == "__main__":
     preds = np.mean(preds[:, :, :preds.shape[-1]//2], axis=0)
     preds, labels = preds[:, para_idx], labels[:, para_idx]
 
-    chain_idx = np.random.choice(np.arange(preds.shape[0]), size=num_chains)
+    # chain_idx = np.random.choice(np.arange(preds.shape[0]), size=num_chains)
+    chain_idx = np.arange(preds.shape[0])
+    num_chains = len(chain_idx)
+
     low, high = np.min(labels, axis=0), np.max(labels, axis=0)
 
     

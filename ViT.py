@@ -44,7 +44,7 @@ if __name__ == "__main__":
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 256
-    num_epochs = 250
+    num_epochs = 300
     learning_rate = 5e-5
     weight_decay_rate = 0.001
     
@@ -153,25 +153,27 @@ if __name__ == "__main__":
         data_collator=collate_fn
     )
 
+    
+    try:
+        trainer.train(resume_from_checkpoint=True)
+    except:
+        trainer.train()
+    trainer.save_model(out_dir)
+
     # try:
     #     print("Loading model")
     #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    # chkpts = os.listdir("./temp/" + out_name)
-    # chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
-    # highest_chkpt = max(chkpts)
-    # with open(f"./temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
-    #     checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
+    chkpts = os.listdir("./temp/" + out_name)
+    chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
+    highest_chkpt = max(chkpts)
+    with open(f"./temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
+        checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
 
     # print("Loading model from", checkpoint_path)
     # trainer.model.load_state_dict(torch.load(checkpoint_path))
     # except:
     # print("Model not found")
     # print("Training model")
-    try:
-        trainer.train(resume_from_checkpoint=True)
-    except:
-        trainer.train()
-    trainer.save_model(out_dir)
 
     with open(out_dir + "preds_model.txt", "w") as f:
         f.write(checkpoint_path)
