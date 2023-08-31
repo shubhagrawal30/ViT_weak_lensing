@@ -18,7 +18,7 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230828"
+    date = "20230901"
     dataset = sys.argv[1]
     out_name = f"{date}_VIT_{dataset}"
     out_dir = f"./new/models/{out_name}/"
@@ -84,7 +84,6 @@ if __name__ == "__main__":
 
     train_data_augmentation = Compose(
             [
-                normalize,
                 RandomHorizontalFlip(),
                 RandomVerticalFlip(),
             ]
@@ -92,7 +91,6 @@ if __name__ == "__main__":
 
     val_data_augmentation = Compose(
             [
-                normalize,
             ]
         )
 

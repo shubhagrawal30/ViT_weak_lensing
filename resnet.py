@@ -17,24 +17,15 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    dataset = "noisy"
-    # dataset = ["DES_one_bin", "DES_half_sky", "DES"][int(sys.argv[1])]
-    date = "20230715"
-    # num_channels = {"DES": 40, "DES_half_sky": 20, "DES_one_bin": 10, \
-    #                 "noisy": 40, "noiseless": 4}[dataset]
-    num_channels = 40
-    # out_name = f"{date}_resnet_{dataset}"
-    out_name = f"{date}_resnet_{dataset}_6_params_no_norm"
-    out_dir = f"./models/{out_name}/"
-    logs_dir = f"./temp/{out_name}/"
+    date = "20230901"
+    dataset = sys.argv[1]
+    out_name = f"{date}_resnet_{dataset}"
+    out_dir = f"./new/models/{out_name}/"
+    logs_dir = f"./new/temp/{out_name}/"
+
     Path(out_dir + "/scalers").mkdir(parents=True, exist_ok=True)
     Path(logs_dir + "/chkpts").mkdir(parents=True, exist_ok=True)
     Path(logs_dir).mkdir(parents=True, exist_ok=True)
-
-
-    # normalize = lambda img: (img - torch.mean(img)) / torch.std(img)
-    normalize = lambda img: img
-    subset = "train"
 
     log_file_path = logs_dir + "logs.txt"
     overwrite_logs = False
@@ -45,14 +36,17 @@ if __name__ == "__main__":
         with open(log_file_path, "a") as f:
             f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
         
+    data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
+    subset = "train"
     labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
-    # labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 256
     num_epochs = 200
     learning_rate = 5e-5
     weight_decay_rate = 0.001
+
+    num_channels = np.array(data[subset][0]["map"]).shape[-1]
     
     id2label = {**{labels.index(label):label for label in labels}, \
                 **{(len(labels)+labels.index(label)): "ln_sig_" + label for label in labels}}
@@ -60,8 +54,6 @@ if __name__ == "__main__":
 
     print(id2label)
     print(label2id)
-
-    data = load_dataset("./data/20230419_224x224/20230419_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
 
     try:
         print("trying to load scalers")
@@ -114,7 +106,6 @@ if __name__ == "__main__":
 
     train_data_augmentation = Compose(
             [
-                normalize,
                 RandomHorizontalFlip(),
                 RandomVerticalFlip(),
             ]
@@ -122,18 +113,15 @@ if __name__ == "__main__":
 
     val_data_augmentation = Compose(
             [
-                normalize,
             ]
         )
 
     def preprocess_train(examples):
-        # examples["labels"] = np.transpose([examples[x] for x in examples.keys() if x != "map"]).astype(np.float32)
         examples["labels"] = np.transpose([examples["scaled_" + x] for x in labels]).astype(np.float32)
         examples['pixel_values'] = [train_data_augmentation(torch.swapaxes(torch.Tensor(np.array(image)), 0, 2)) for image in examples['map']]
         return examples
 
     def preprocess_val(examples):
-        # examples["labels"] = np.transpose([examples[x] for x in examples.keys() if x != "map"]).astype(np.float32)
         examples["labels"] = np.transpose([examples["scaled_" + x] for x in labels]).astype(np.float32)
         examples['pixel_values'] = [val_data_augmentation(torch.swapaxes(torch.Tensor(np.array(image)), 0, 2)) for image in examples['map']]
         return examples
@@ -152,14 +140,6 @@ if __name__ == "__main__":
     val_dataloader = DataLoader(data["validation"], collate_fn=collate_fn, batch_size=per_device_eval_batch_size)
     test_dataloader = DataLoader(data["test"], collate_fn=collate_fn, batch_size=per_device_eval_batch_size)
     
-
-    # try:
-    #     print("Loading model")
-    #     # trainer.model.load_state_dict(torch.load(out_dir + "pytorch_model.bin"))
-    #     trainer.model.load_state_dict(torch.load("./temp/" + out_name + \
-    #                                 "/checkpoint-140/pytorch_model.bin"))
-    # except:
-    print("Model not found")
     print("Training model")
 
     def train_model(model, 
@@ -328,15 +308,12 @@ if __name__ == "__main__":
 
     upp_lims = np.nanmax(plot_y, axis=0)
     low_lims = np.nanmin(plot_y, axis=0)
-    # fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 5))
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 5))
     fig.subplots_adjust(wspace=0.3, hspace=0.2)
-    # plot_labels = [r"$\Omega_m$", r"$\sigma_8$"]
     plot_labels = [r"$H_0$", r"$\Omega_b$", r"$\Omega_m$", r"$n_s$", r"$\sigma_8$", r"$w_0$"]
     for ind, (label, ax, low_lim, upp_lim) in enumerate(zip(plot_labels, axs.ravel(), low_lims, upp_lims)):
         p = np.poly1d(np.polyfit(plot_y[:, ind], predictions_best[:, ind], 1))
         ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  predictions_std[:, ind][::10], marker="x", ls='none', alpha=0.4)
-        # ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  0, marker="x", ls='none', alpha=0.4)
         ax.set_xlabel("true")
         ax.set_ylabel("prediction")
         ax.plot([low_lim, upp_lim], [low_lim, upp_lim], color="black")
