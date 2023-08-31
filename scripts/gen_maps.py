@@ -7,12 +7,10 @@ from copy import copy
 from itertools import repeat
 
 import multiprocessing as mp
-num_threads = 128
-num_patches = 32
+num_threads = 32
 
 from pathlib import Path
-out_dir = '../data/20230814_224x224/'
-# out_dir = '../data/fiducial_224x224/'
+out_dir = '../data/20230419_224x224/'
 Path(out_dir).mkdir(parents=True, exist_ok=True)
 
 instrument = "stage3_forecast"
@@ -21,9 +19,6 @@ fiducial_dir = os.path.join(cosmogrid_dir, instrument, "fiducial")
 benchmark_dir = os.path.join(cosmogrid_dir, instrument, "benchmark")
 grids_dir = os.path.join(cosmogrid_dir, instrument, "grid")
 fil_name = "projected_probes_maps_baryonified512.h5"
-
-# dir_used = fiducial_dir
-dir_used = grids_dir
 
 def IndexToDeclRa(index, nside,nest= False):
     theta,phi=hp.pixelfunc.pix2ang(nside ,index,nest=nest)
@@ -44,7 +39,7 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, \
         res = hp.nside2resol(nside, arcmin=True)
         xsize=out_shape[0]
 
-        pairs_ = pairs_[:, np.random.choice(np.arange(pairs_.shape[1]), num_patches, replace=False)]
+        pairs_ = pairs_[:, np.random.choice(np.arange(pairs_.shape[1]), 10, replace=False)]
 
         out_arr = np.empty((pairs_.shape[1], *out_shape))
 
@@ -62,7 +57,7 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, \
 def for_one_grid(grid):
     try:
     # if 1:
-        path_grid = os.path.join(dir_used, grid)
+        path_grid = os.path.join(grids_dir, grid)
         all_perms_out = np.ndarray((0, 224, 224, 4))
         for perm in os.listdir(path_grid):
             if "perm" not in perm:
@@ -78,9 +73,9 @@ def for_one_grid(grid):
     return grid
 
 if __name__ == "__main__":
-    grids = os.listdir(dir_used)
+    grids = os.listdir(grids_dir)
     print(f"found {len(grids)} simulations")
-    overwrite = True
+    overwrite = False
     for grid in copy(grids):
         if (not overwrite) and os.path.exists(os.path.join(out_dir, grid + ".npy")):
             grids.remove(grid)
