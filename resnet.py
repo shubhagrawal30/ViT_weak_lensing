@@ -35,8 +35,15 @@ if __name__ == "__main__":
     else:
         with open(log_file_path, "a") as f:
             f.write("Starting new run\n at " + str(datetime.datetime.now()) + "\n")
+
+    if os.uname()[1] == "marmalade.physics.upenn.edu":
+        print("I'm on marmalade!")
+        cache_dir = "/data2/shared/shubh/cache/"
+    elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
+        print("I'm on perlmutter!")
+        cache_dir = "/pscratch/sd/s/shubh/"
         
-    data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir="/data2/shared/shubh/cache")
+    data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir=cache_dir)
     subset = "train"
     labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
     size = (224, 224)
