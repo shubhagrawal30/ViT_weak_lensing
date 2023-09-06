@@ -143,5 +143,5 @@ dmypy.json
 **/*.jsonl
 
 models/
-
+mistake/
 new/

@@ -7,10 +7,10 @@ from copy import copy
 from itertools import repeat
 
 import multiprocessing as mp
-num_threads = 32
+num_threads = 200
 
 from pathlib import Path
-out_dir = '../data/20230419_224x224/'
+out_dir = '/pscratch/sd/s/shubh/20230915_224x224_patches/'
 Path(out_dir).mkdir(parents=True, exist_ok=True)
 
 instrument = "stage3_forecast"
@@ -39,7 +39,10 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, \
         res = hp.nside2resol(nside, arcmin=True)
         xsize=out_shape[0]
 
-        pairs_ = pairs_[:, np.random.choice(np.arange(pairs_.shape[1]), 10, replace=False)]
+        inds = np.arange(pairs_.shape[1])
+        np.random.shuffle(inds)
+        pairs_ = pairs_[:, inds]
+        # pairs_ = pairs_[:, np.random.choice(np.arange(pairs_.shape[1]), size=10, replace=False)]
 
         out_arr = np.empty((pairs_.shape[1], *out_shape))
 
@@ -56,7 +59,6 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, \
 
 def for_one_grid(grid):
     try:
-    # if 1:
         path_grid = os.path.join(grids_dir, grid)
         all_perms_out = np.ndarray((0, 224, 224, 4))
         for perm in os.listdir(path_grid):

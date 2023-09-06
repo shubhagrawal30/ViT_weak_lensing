@@ -25,9 +25,9 @@ NUM_PERMS = 7
 SHAPE_NOISE = 0.26
 
 DEN_GAL = {
-    "DESY3": 5.59, # DESY3 Gatti et al. 2020
-    "LSSTY1": 11.112, # LSST DESC SRD
-    "LSSTY10": 27.737 # LSST DESC SRD
+    "DESY3": 5.59 * ANG_RES * ANG_RES, # DESY3 Gatti et al. 2020
+    "LSSTY1": 11.112 * ANG_RES * ANG_RES, # LSST DESC SRD
+    "LSSTY10": 27.737 * ANG_RES * ANG_RES # LSST DESC SRD
 }
 
 FOOTPRINTS = {
@@ -49,7 +49,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 if "half" in config[1]:
                     num_patches //= 2
                 if "double" in config[1]:
-                    assert config[0] == "DESY3", "Only DESY3 has double footprint option."
+                    # assert config[0] == "DESY3", "Only DESY3 has double footprint option."
                     num_patches *= 2
                 if "onebin" in config[1]:
                     num_patches //= 4
@@ -96,8 +96,8 @@ class NewDataset(datasets.GeneratorBasedBuilder):
         ]
 
     def _generate_examples(self, filepath):
-        data_dir = "/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/20230814_224x224"
-        df = pd.read_csv(os.path.join(data_dir, "..", "parameters.csv"))
+        data_dir = "/pscratch/sd/s/shubh/20230915_224x224_patches/"
+        df = pd.read_csv("/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/parameters.csv")
         key = 0
         with open(filepath, "r") as reader:
             for filename in reader:
@@ -113,15 +113,15 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                         if "half" in config[1]:
                             num_patches_per_key //= 2
                         if "double" in config[1]:
-                            assert config[0] == "DESY3", "Only DESY3 has double footprint option."
+                            # assert config[0] == "DESY3", "Only DESY3 has double footprint option."
                             num_patches_per_key *= 2
                     
                     num_keys = num_patches_per_perm // num_patches_per_key
                     num_keys = 1
 
                     if "twice" in config[-1]:
-                        assert config[0] == "DESY3" or config[1] == "half", \
-                            "Only DESY3 or _half has twice option."
+                        # assert config[0] == "DESY3" or config[1] == "half", \
+                        #     "Only DESY3 or _half has twice option."
                         num_keys = 2
 
                     num_patches_per_key *= 4 # z bins
