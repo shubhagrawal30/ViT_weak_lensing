@@ -58,6 +58,9 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, \
         print("failed", fil_name)
 
 def for_one_grid(grid):
+    if os.path.exists(os.path.join(out_dir, grid + ".npy")):
+        print("already exists", grid)
+        return
     try:
         path_grid = os.path.join(grids_dir, grid)
         all_perms_out = np.ndarray((0, 224, 224, 4))
@@ -82,7 +85,9 @@ if __name__ == "__main__":
         if (not overwrite) and os.path.exists(os.path.join(out_dir, grid + ".npy")):
             grids.remove(grid)
     print(f"running {len(grids)} simulations")
-
+    
+    np.random.shuffle(grids)
+    
     my_pool = mp.Pool(processes=num_threads)
     for _ in alive_it(my_pool.imap_unordered(for_one_grid, grids), total=len(grids), \
                       bar="checks", spinner="notes"):

@@ -49,7 +49,6 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 if "half" in config[1]:
                     num_patches //= 2
                 if "double" in config[1]:
-                    # assert config[0] == "DESY3", "Only DESY3 has double footprint option."
                     num_patches *= 2
                 if "onebin" in config[1]:
                     num_patches //= 4
@@ -70,27 +69,24 @@ class NewDataset(datasets.GeneratorBasedBuilder):
             license=_LICENSE, citation=_CITATION,)
 
     def _split_generators(self, dl_manager):
-        data_dir = "/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/20230814_224x224"
+        file_dir = "/global/cfs/cdirs/des/shubh/transformers/ViT_weak_lensing/data/20230814_224x224"
         return [
             datasets.SplitGenerator(
                 name=datasets.Split.TRAIN,
-                # These kwargs will be passed to _generate_examples
                 gen_kwargs={
-                    "filepath": os.path.join(data_dir, "train.txt")
+                    "filepath": os.path.join(file_dir, "train.txt")
                 },
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.VALIDATION,
-                # These kwargs will be passed to _generate_examples
                 gen_kwargs={
-                    "filepath": os.path.join(data_dir, "val.txt")
+                    "filepath": os.path.join(file_dir, "val.txt")
                 },
             ),
             datasets.SplitGenerator(
                 name=datasets.Split.TEST,
-                # These kwargs will be passed to _generate_examples
                 gen_kwargs={
-                    "filepath": os.path.join(data_dir, "test.txt")
+                    "filepath": os.path.join(file_dir, "test.txt")
                 },
             ),
         ]
@@ -113,16 +109,19 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                         if "half" in config[1]:
                             num_patches_per_key //= 2
                         if "double" in config[1]:
-                            # assert config[0] == "DESY3", "Only DESY3 has double footprint option."
                             num_patches_per_key *= 2
                     
-                    num_keys = num_patches_per_perm // num_patches_per_key
                     num_keys = 1
-
                     if "twice" in config[-1]:
-                        # assert config[0] == "DESY3" or config[1] == "half", \
-                        #     "Only DESY3 or _half has twice option."
                         num_keys = 2
+                    if "4times" in config[-1]:
+                        num_keys = 4
+                    if "8times" in config[-1]:
+                        num_keys = 8
+                    if "16times" in config[-1]:
+                        num_keys = 16
+                    if "all" in config[-1]:
+                        num_keys = num_patches_per_perm // num_patches_per_key
 
                     num_patches_per_key *= 4 # z bins
 
@@ -150,6 +149,6 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 else:
                     print("Invalid dataset name.")
                     print("Supported: DESY3, LSSTY1, LSSTY10, +_half, +_one_bin, \
-                          DESY3_double, +_half_twice, DESY3_twice")
+                          +_double, +_half_twice, +_twice")
 
                 
