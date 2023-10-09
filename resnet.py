@@ -17,7 +17,7 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230901"
+    date = "20230915"
     dataset = sys.argv[1]
     out_name = f"{date}_resnet_{dataset}"
     out_dir = f"./new/models/{out_name}/"
@@ -41,7 +41,7 @@ if __name__ == "__main__":
         cache_dir = "/data2/shared/shubh/cache/"
     elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
         print("I'm on perlmutter!")
-        cache_dir = "/pscratch/sd/s/shubh/"
+        cache_dir = "/pscratch/sd/s/shubh/ViT/"
         
     data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir=cache_dir)
     subset = "train"
@@ -237,10 +237,10 @@ if __name__ == "__main__":
         lr=learning_rate,
         weight_decay=weight_decay_rate)
     
-    model = train_model(model, train_dataloader, val_dataloader, len(data["train"]), \
-                        len(data["validation"]), optimizer, num_epochs)
-
-    torch.save(model.state_dict(), out_dir + "pytorch_model.bin")
+    if int(sys.argv[2]) == 0:
+        model = train_model(model, train_dataloader, val_dataloader, len(data["train"]), \
+                            len(data["validation"]), optimizer, num_epochs)
+        torch.save(model.state_dict(), out_dir + "pytorch_model.bin")
 
     history_files = glob.glob(logs_dir + "/*logs*")
 

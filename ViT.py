@@ -18,7 +18,7 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230901"
+    date = "20230915"
     dataset = sys.argv[1]
     out_name = f"{date}_VIT_{dataset}"
     out_dir = f"./new/models/{out_name}/"
@@ -29,7 +29,13 @@ if __name__ == "__main__":
         cache_dir = "/data2/shared/shubh/cache/"
     elif os.uname()[1][:5] == "login" or os.uname()[1][:3] == "nid":
         print("I'm on perlmutter!")
-        cache_dir = "/pscratch/sd/s/shubh/"
+        # if "LSSTY10" in dataset:
+        #     cache_dir = "/pscratch/sd/h/helenqu/shubh/ViT/"
+        # elif "DESY3" in dataset:
+        #     cache_dir = "/pscratch/sd/m/mjarvis/shubh/"
+        # else:
+        cache_dir = "/pscratch/sd/s/shubh/ViT/"
+        
 
     data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir=cache_dir)
     subset = "train"
@@ -145,12 +151,14 @@ if __name__ == "__main__":
         data_collator=collate_fn
     )
 
-    
-    try:
-        trainer.train(resume_from_checkpoint=True)
-    except:
-        trainer.train()
-    trainer.save_model(out_dir)
+    if int(sys.argv[2]) == 0:
+        try:
+            trainer.train(resume_from_checkpoint=True)
+        except:
+            trainer.train()
+        trainer.save_model(out_dir)
+    else:
+        print("only predicting")
 
     chkpts = os.listdir("./new/temp/" + out_name)
     chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
