@@ -43,6 +43,7 @@ class NewDataset(datasets.GeneratorBasedBuilder):
 
     def _info(self):
         config = (self.config.name).split("_")
+        num_bins = 4
         if config[0] in DEN_GAL.keys():
             num_patches = np.round(FOOTPRINTS[config[0]] / (ANG_SIZE * ANG_SIZE))
             if len(config) > 1:
@@ -51,8 +52,9 @@ class NewDataset(datasets.GeneratorBasedBuilder):
                 if "double" in config[1]:
                     num_patches *= 2
                 if "onebin" in config[1]:
-                    num_patches //= 4
-            shape = (224, 224, int(num_patches) * 4)
+                    num_bins = 1    
+            shape = (224, 224, int(num_patches) * num_bins)
+            
 
         features = datasets.Features({   
             "As": datasets.Value("float32"), "bary_Mc": datasets.Value("float32"),
