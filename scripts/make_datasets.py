@@ -2,7 +2,7 @@ from datasets import load_dataset
 import os
 
 dataset_names = ["DESY3", "LSSTY1", "LSSTY10"]
-addeds = ["", "_half", "_onebin", "_double", "_half_twice", "_twice", "_4times"]#, "_8times", "_16times", "_all"]
+addeds = ["", "_half", "_onebin", "_double", "_half_twice", "_twice", "_4times", "_8times", "_16times", "_all"]
 # addeds = ["_onebin"]
 # hashcode = "fdbec89db2168787deac1ef744190b64434299a1eed5f8e7adeb610438d0c926"
 hashcode = "7e924e5aa3dc3eb2e0370985a404633e9a0e8c07c3d5d5028e07308b65991e43"

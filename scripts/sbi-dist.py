@@ -9,13 +9,15 @@ from sbi import analysis as analysis
 from sbi.inference.base import infer
 import getdist
 from getdist import plots, MCSamples
-import sys
+import sys, pathlib
 print("done importing")
 
-model_names = sys.argv[1:]
+model_names = sys.argv[2:]
 date = "20230915"
 folder = f"../new/models/{date}_"
-out_dir = f"../new/"
+out_dir = f"../new/plots/{sys.argv[1]}/"
+pathlib.Path(out_dir).mkdir(parents=True, exist_ok=True)
+
 indices = [2, 4, 5]
 index = 1590
 pars = np.array(["H0", "Ob", "Om", "ns", "s8", "w0"])
@@ -42,6 +44,9 @@ for ind, model in enumerate(model_names):
         ax.set_title(pars[i])
         ax.grid(True)
         ax.set_aspect("equal")
+        
+    if index is None:
+        index = np.random.randint(0, len(labels))
         
     preds, labels = preds[:, indices], labels[:, indices]
     x_0 = preds[index]
@@ -81,7 +86,7 @@ for i in range(len(indices)):
         if i == j:
             ax.axvline(true[i], color="black", ls="--", lw=1)
         else:
-            ax.scatter(true[j], true[i], color="black", marker="x", s=10) 
+            ax.scatter(true[j], true[i], color="black", marker="x", s=20) 
         ax.grid(True, ls="--", lw=1, alpha=0.5)
 
 g.export(f"{out_dir}triangle.png")

@@ -42,10 +42,11 @@ if __name__ == "__main__":
     labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
     size = (224, 224)
     per_device_train_batch_size = 128
-    if dataset == "LSSTY10":
-        per_device_eval_batch_size = 128
-    else:
-        per_device_eval_batch_size = 256
+    # if dataset in ["LSSTY10", "LSSTY1_double"]:
+    #    per_device_eval_batch_size = 128
+    # else:
+    #    per_device_eval_batch_size = 256
+    per_device_eval_batch_size = 128
     num_epochs = 300
     learning_rate = 5e-5
     weight_decay_rate = 0.001

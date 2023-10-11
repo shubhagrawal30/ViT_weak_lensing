@@ -6,8 +6,8 @@ dataset_names = ["DESY3", "LSSTY1", "LSSTY10"]
 addeds = ["", "_half", "_onebin", "_double", "_half_twice", "_twice", "_4times"]#, "_8times", "_16times", "_all"]
 hashcode = "7e924e5aa3dc3eb2e0370985a404633e9a0e8c07c3d5d5028e07308b65991e43"
 
-done = ["DESY3_double", "DESY3_half", "LSSTY1", "DESY3_half_twice"]
-preds_done = ["DESY3_double", "DESY3_half", "LSSTY1", "DESY3_half_twice"]
+done = ["DESY3_double", "DESY3_half", "LSSTY1", "DESY3_half_twice", "DESY3"]
+preds_done = ["DESY3_double", "DESY3_half", "LSSTY1", "DESY3_half_twice", "DESY3"]
 
 for dataset in dataset_names:
     # if "LSSTY10" in dataset:
