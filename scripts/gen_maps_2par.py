@@ -60,7 +60,7 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, out_shape=(224, 224, 4)
     if os.path.exists(os.path.join(out_dir, fil_name.split('.')[0] + ".npy")):
         print("already exists", fil_name.split('.')[0])
         return
-    if 1:
+    try:
         kappas, Om, sigma8 = get_kappa_allsky(fil_path, nside=nside)
         with open(params_file, 'a') as f:
             f.write(f"{fil_name.split('.')[0]},{Om},{sigma8}\n")
@@ -84,7 +84,7 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, out_shape=(224, 224, 4)
                                            no_plot=True,reso=res,return_projected_map=True)
                 out_arr[i, :, :, chan] = m_projected
         np.save(os.path.join(out_dir, fil_name.split('.')[0]), out_arr)
-    if 1:
+    except:
         print("failed", fil_name)
     return fil_name
 
