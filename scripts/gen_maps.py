@@ -20,9 +20,9 @@ benchmark_dir = os.path.join(cosmogrid_dir, instrument, "benchmark")
 grids_dir = os.path.join(cosmogrid_dir, instrument, "grid")
 fil_name = "projected_probes_maps_baryonified512.h5"
 
-def IndexToDeclRa(index, nside,nest= False):
-    theta,phi=hp.pixelfunc.pix2ang(nside ,index,nest=nest)
-    return -np.degrees(theta-np.pi/2.),np.degrees(phi)
+def IndexToDeclRa(index, nside, nest= False):
+    theta, phi = hp.pixelfunc.pix2ang(nside, index, nest=nest)
+    return - np.degrees(theta - np.pi / 2.), np.degrees(phi)
 
 
 def gen_from_one_file(fil_name, nside=512, nside_crop=4, \
