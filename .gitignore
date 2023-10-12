@@ -147,3 +147,5 @@ mistake/
 new/
 
 **/sbi-logs
+
+**/slurm*

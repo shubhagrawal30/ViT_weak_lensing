@@ -7,7 +7,7 @@ from copy import copy
 from itertools import repeat
 
 import multiprocessing as mp
-num_threads = 200
+num_threads = 100
 Z_BINS = 4
 
 from pathlib import Path
@@ -89,7 +89,7 @@ def gen_from_one_file(fil_name, nside=512, nside_crop=4, out_shape=(224, 224, 4)
     return fil_name
 
 if __name__ == "__main__":
-    grids = os.listdir(maps_dir)[:1]
+    grids = os.listdir(maps_dir)
     print(f"found {len(grids)} simulations")
     overwrite = False
     for grid in copy(grids):
