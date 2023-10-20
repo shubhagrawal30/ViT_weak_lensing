@@ -145,6 +145,7 @@ dmypy.json
 models/
 mistake/
 new/
+2par/
 
 **/sbi-logs
 

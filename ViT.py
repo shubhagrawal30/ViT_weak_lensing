@@ -18,10 +18,10 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230915"
+    date = "20231010"
     dataset = sys.argv[1]
     out_name = f"{date}_VIT_{dataset}"
-    out_dir = f"./new/models/{out_name}/"
+    out_dir = f"./2par/models/{out_name}/"
     Path(out_dir + "scalers/").mkdir(parents=True, exist_ok=True)
 
     if os.uname()[1] == "marmalade.physics.upenn.edu":
@@ -37,9 +37,9 @@ if __name__ == "__main__":
         cache_dir = "/pscratch/sd/s/shubh/ViT/"
         
 
-    data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir=cache_dir)
+    data = load_dataset("./data/20231010_224x224_2par/20231010_224x224_2par.py", dataset, cache_dir=cache_dir)
     subset = "train"
-    labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
+    labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
     # if dataset in ["LSSTY10", "LSSTY1_double"]:
@@ -132,7 +132,7 @@ if __name__ == "__main__":
         return {"pixel_values": pixel_values, "labels": labels}
 
     args = TrainingArguments(
-        f"./new/temp/{out_name}",
+        f"./2par/temp/{out_name}",
         save_strategy="epoch",
         evaluation_strategy="epoch",
         num_train_epochs=num_epochs,
@@ -158,13 +158,14 @@ if __name__ == "__main__":
         except:
             trainer.train()
         trainer.save_model(out_dir)
+        exit() # TODO
     else:
         print("only predicting")
 
-    chkpts = os.listdir("./new/temp/" + out_name)
+    chkpts = os.listdir("./2par/temp/" + out_name)
     chkpts = [int(chkpt.split("-")[1]) for chkpt in chkpts if "checkpoint" in chkpt]
     highest_chkpt = max(chkpts)
-    with open(f"./new/temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
+    with open(f"./2par/temp/{out_name}/checkpoint-{highest_chkpt}/trainer_state.json", "r") as f:
         checkpoint_path = json.load(f)['best_model_checkpoint'] + "/pytorch_model.bin"
 
     print("Loading model from", checkpoint_path)
@@ -217,10 +218,11 @@ if __name__ == "__main__":
     low_lims = np.nanmin(plot_y, axis=0)
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 5))
     fig.subplots_adjust(wspace=0.3, hspace=0.2)
-    plot_labels = [r"$H_0$", r"$\Omega_b$", r"$\Omega_m$", r"$n_s$", r"$\sigma_8$", r"$w_0$"]
+    plot_labels = [r"$\Omega_m$", r"$\sigma_8$"]
+    sparse_fac = 1
     for ind, (label, ax, low_lim, upp_lim) in enumerate(zip(plot_labels, axs.ravel(), low_lims, upp_lims)):
         p = np.poly1d(np.polyfit(plot_y[:, ind], predictions_best[:, ind], 1))
-        ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  predictions_std[:, ind][::10], marker="x", ls='none', alpha=0.4)
+        ax.errorbar(plot_y[:, ind][::sparse_fac], predictions_best[:, ind][::sparse_fac],  predictions_std[:, ind][::sparse_fac], marker="x", ls='none', alpha=0.4)
         ax.set_xlabel("true")
         ax.set_ylabel("prediction")
         ax.plot([low_lim, upp_lim], [low_lim, upp_lim], color="black")

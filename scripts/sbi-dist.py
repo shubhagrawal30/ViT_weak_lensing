@@ -1,6 +1,7 @@
 print("starting")
 import numpy as np
 from matplotlib import pyplot as plt
+import matplotlib.colors as mcolors
 import torch
 from sbi.inference import SNPE, prepare_for_sbi, simulate_for_sbi
 from sbi.utils.get_nn_models import posterior_nn
@@ -9,22 +10,38 @@ from sbi import analysis as analysis
 from sbi.inference.base import infer
 import getdist
 from getdist import plots, MCSamples
-import sys, pathlib
+import sys, pathlib, os, random
 print("done importing")
 
-model_names = sys.argv[2:]
-date = "20230915"
-folder = f"../new/models/{date}_"
-out_dir = f"../new/plots/{sys.argv[1]}/"
+date = "20231010"
+out_dir = f"../2par/plots/{sys.argv[1]}/"
 pathlib.Path(out_dir).mkdir(parents=True, exist_ok=True)
 
-indices = [2, 4, 5]
-index = 1590
-pars = np.array(["H0", "Ob", "Om", "ns", "s8", "w0"])
-colors = ["blue", "red", "purple", "orange", "green", "brown", \
-    "pink", "gray", "olive", "cyan"][:len(model_names)]
+list_mode = int(sys.argv[2])
 
-fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 7))
+if list_mode == 1:
+    model_names = sys.argv[3:]
+    folder = f"../2par/models/{date}_VIT_"
+else:
+    model_type = sys.argv[3]
+    folder = f"../2par/models/"
+    m_ns, model_names = os.listdir(folder), []
+    for mn in m_ns:
+        if model_type in mn:
+            model_names += [mn]
+    print(model_names)
+
+indices = [0, 1]
+index = 0
+pars = np.array(["Om", "s8"])
+# colors = ["blue", "red", "purple", "orange", "green", "brown", \
+#     "pink", "gray", "olive", "cyan"][:len(model_names)]
+colors = list(mcolors.XKCD_COLORS.keys())
+# colors = list(mcolors.TABLEAU_COLORS.keys())
+# colors = list(mcolors.CSS4_COLORS.keys())
+random.shuffle(colors)
+
+fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(10, 7))
 gd_samples = []
 
 for ind, model in enumerate(model_names):
@@ -33,10 +50,12 @@ for ind, model in enumerate(model_names):
     labels = np.load(f"{folder}{model}/label_ids0.npy")
     preds = np.mean(preds[:, :, :preds.shape[2]//2], axis=0)
     
+    print(ind, colors[ind], len(colors))
+    
     for i in range(len(pars)):
-        ax = axs[i//3, i%3]
+        ax = axs[i]
         ax.scatter(labels[:, i], preds[:, i], color=colors[ind], \
-            label=model, marker="x", s=1, alpha=0.5)
+            label=model, marker="x", s=5, alpha=0.5)
         ran = np.min(labels[:, i]), np.max(labels[:, i])
         ax.plot(ran, ran, c="black", ls="--", lw=1)
         ax.set_xlabel("True")
