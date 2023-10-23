@@ -17,11 +17,11 @@ if __name__ == "__main__":
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(device)
 
-    date = "20230915"
+    date = "20231010"
     dataset = sys.argv[1]
     out_name = f"{date}_resnet_{dataset}"
-    out_dir = f"./new/models/{out_name}/"
-    logs_dir = f"./new/temp/{out_name}/"
+    out_dir = f"./2par/models/{out_name}/"
+    logs_dir = f"./2par/temp/{out_name}/"
 
     Path(out_dir + "/scalers").mkdir(parents=True, exist_ok=True)
     Path(logs_dir + "/chkpts").mkdir(parents=True, exist_ok=True)
@@ -43,13 +43,13 @@ if __name__ == "__main__":
         print("I'm on perlmutter!")
         cache_dir = "/pscratch/sd/s/shubh/ViT/"
         
-    data = load_dataset("./data/20230814_224x224/20230814_224x224.py", dataset, cache_dir=cache_dir)
+    data = load_dataset("./data/20231010_224x224/20231010_224x224.py", dataset, cache_dir=cache_dir)
     subset = "train"
-    labels = ["H0", "Ob", "Om", "ns", "s8", "w0"]
+    labels = ["Om", "s8"]
     size = (224, 224)
     per_device_train_batch_size = 128
     per_device_eval_batch_size = 128
-    num_epochs = 200
+    num_epochs = 100
     learning_rate = 5e-5
     weight_decay_rate = 0.001
 
@@ -317,10 +317,11 @@ if __name__ == "__main__":
     low_lims = np.nanmin(plot_y, axis=0)
     fig, axs = plt.subplots(nrows=2, ncols=3, figsize=(10, 5))
     fig.subplots_adjust(wspace=0.3, hspace=0.2)
-    plot_labels = [r"$H_0$", r"$\Omega_b$", r"$\Omega_m$", r"$n_s$", r"$\sigma_8$", r"$w_0$"]
+    plot_labels = [r"$\Omega_m$", r"$\sigma_8$"]
+    sparse_factor = 1
     for ind, (label, ax, low_lim, upp_lim) in enumerate(zip(plot_labels, axs.ravel(), low_lims, upp_lims)):
         p = np.poly1d(np.polyfit(plot_y[:, ind], predictions_best[:, ind], 1))
-        ax.errorbar(plot_y[:, ind][::10], predictions_best[:, ind][::10],  predictions_std[:, ind][::10], marker="x", ls='none', alpha=0.4)
+        ax.errorbar(plot_y[:, ind][::sparse_factor], predictions_best[:, ind][::sparse_factor],  predictions_std[:, ind][::sparse_factor], marker="x", ls='none', alpha=0.4)
         ax.set_xlabel("true")
         ax.set_ylabel("prediction")
         ax.plot([low_lim, upp_lim], [low_lim, upp_lim], color="black")
